@@ -1,7 +1,9 @@
 const poppler = require("pdf-poppler");
+const { Poppler } = require("node-poppler");
 const fs = require("fs/promises");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
+const os = require("os");
 
 /**
  * Chuyển đổi PDF thành ảnh (không lưu file)
@@ -24,16 +26,28 @@ const convertPdfToImages = async (pdfBuffer) => {
     const imageDir = path.join(tempDir, uuidv4());
     await fs.mkdir(imageDir, { recursive: true });
 
-    // Cấu hình chuyển đổi PDF -> PNG
-    const options = {
-      format: "png",
-      out_dir: imageDir,
-      out_prefix: "slide",
-      resolution: 600, // DPI cao để ảnh sắc nét
-    };
+    if (os.platform() === "linux") {
+      const nodePoppler = new Poppler();
+      // Cấu hình chuyển đổi PDF -> PNG
+      const options = {
+        allFiles: true,
+        pngFile: true,
+      };
 
-    // Chuyển đổi PDF thành danh sách ảnh PNG
-    await poppler.convert(pdfPath, options);
+      // Chuyển đổi PDF thành danh sách ảnh PNG
+      await nodePoppler.pdfImages(pdfPath, imageDir, options);
+    } else {
+      // Cấu hình chuyển đổi PDF -> PNG
+      const options = {
+        format: "png",
+        out_dir: imageDir,
+        out_prefix: "slide",
+        resolution: 600, // DPI cao để ảnh sắc nét
+      };
+
+      // Chuyển đổi PDF thành danh sách ảnh PNG
+      await poppler.convert(pdfPath, options);
+    }
 
     // Lấy danh sách ảnh đã chuyển đổi
     const imageFiles = await fs.readdir(imageDir);
