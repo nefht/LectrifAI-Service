@@ -1,5 +1,6 @@
 const Joi = require("joi");
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
 // Schema Joi for register
 const registerSchema = Joi.object({
@@ -37,8 +38,8 @@ const forgotPasswordSchema = Joi.object({
 
 // Schema Joi for reset password
 const resetPasswordSchema = Joi.object({
-  token: Joi.string().required(),
-  password: Joi.string().min(6).required(),
+  resetToken: Joi.string().required(),
+  newPassword: Joi.string().min(6).required(),
 });
 
 const validate = (schema) => {
@@ -77,6 +78,28 @@ const verifyToken = (req, res, next) => {
   }
 };
 
+// Middleware xác thực và gán userId vào socket
+const authenticateSocket = async (socket, next) => {
+  try {
+    const token = socket.handshake.query.token; // Lấy token từ query string
+    if (!token) {
+      return next(new Error("Authentication error"));
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET); // Giải mã token
+    const user = await User.findById(decoded.id); // Tìm user theo userId trong token
+
+    if (!user) {
+      return next(new Error("User not found"));
+    }
+
+    socket.userId = user._id; // Gán userId vào socket
+    next();
+  } catch (error) {
+    return next(new Error("Authentication error"));
+  }
+};
+
 module.exports = {
   validateRegister,
   validateLogin,
@@ -84,4 +107,5 @@ module.exports = {
   validateForgotPassword,
   validateResetPassword,
   verifyToken,
+  authenticateSocket,
 };

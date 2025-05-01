@@ -9,5 +9,10 @@ router.get(
   verifyToken,
   ClassroomLectureVideoController.getClassroomLectureVideoById
 );
+router.delete(
+  "/:id",
+  verifyToken,
+  ClassroomLectureVideoController.deleteClassroomLectureVideoById
+);
 
 module.exports = router;

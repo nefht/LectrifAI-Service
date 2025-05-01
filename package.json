@@ -31,12 +31,12 @@
     "mime-types": "^2.1.35",
     "mongoose": "^8.8.3",
     "multer": "^1.4.5-lts.1",
-    "node-poppler": "^7.2.4",
     "nodemailer": "^6.10.0",
     "openai": "^4.76.0",
     "pdf-poppler": "^0.2.1",
     "remove-markdown": "^0.6.0",
     "sharp": "^0.33.5",
+    "socket.io": "^4.8.1",
     "transformers": "^1.8.3"
   },
   "devDependencies": {

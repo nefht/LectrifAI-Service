@@ -14,8 +14,10 @@ class LectureVideoController {
     try {
       const userId = req.user.id;
       const userIdObject = new ObjectId(userId);
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
+
+      // Phân trang
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 10;
       const skip = (page - 1) * limit;
 
       const {
@@ -25,28 +27,35 @@ class LectureVideoController {
         order = "desc",
       } = req.query;
 
-      // Tạo filter object
-      let filter = {};
-      if (interactiveQuiz) filter.interactiveQuiz = interactiveQuiz;
-
-      // Lấy các lecture video mà người dùng có quyền truy cập
-      const permissions = await LectureVideoPermission.find({
+      // Xây dựng filter quyền truy cập
+      // - video của chính mình
+      // - video public
+      // - video được share cho mình (VIEWER/EDITOR)
+      const perms = await LectureVideoPermission.find({
         userId: userIdObject,
         permissionType: { $in: ["VIEWER", "EDITOR"] },
       }).select("lectureVideoId");
 
-      const videoIds = permissions.map(
-        (permission) => permission.lectureVideoId
-      );
-      filter = {
+      const sharedIds = perms.map((p) => p.lectureVideoId);
+      const accessFilter = {
         $or: [
           { userId: userIdObject },
-          { isPublic: true },
-          { _id: { $in: videoIds } },
+          // { isPublic: true },
+          { _id: { $in: sharedIds } },
         ],
       };
+      if (interactiveQuiz != null) {
+        accessFilter.interactiveQuiz = interactiveQuiz;
+      }
 
-      const pipeline = [
+      // Build aggregation pipeline
+      const pipeline = [];
+
+      // filter quyền truy cập trước
+      pipeline.push({ $match: accessFilter });
+
+      // lookup lectureScript (để search theo nội dung)
+      pipeline.push(
         {
           $lookup: {
             from: "lecturescripts",
@@ -56,46 +65,89 @@ class LectureVideoController {
           },
         },
         {
-          $unwind: "$lectureScript",
-        },
-        {
+          $unwind: {
+            path: "$lectureScript",
+            preserveNullAndEmptyArrays: true,
+          },
+        }
+      );
+
+      // nếu có search thì filter tiếp
+      if (search) {
+        pipeline.push({
           $match: {
-            ...filter,
-            ...(search
-              ? {
-                  $or: [
-                    { lectureName: { $regex: search, $options: "i" } },
-                    {
-                      "lectureScript.lectureScript.lectureName": {
-                        $regex: search,
-                        $options: "i",
-                      },
-                    },
-                    {
-                      "lectureScript.lectureScript.slides.script": {
-                        $regex: search,
-                        $options: "i",
-                      },
-                    },
-                  ],
-                }
-              : {}),
+            $or: [
+              { lectureName: { $regex: search, $options: "i" } },
+              {
+                "lectureScript.lectureScript.lectureName": {
+                  $regex: search,
+                  $options: "i",
+                },
+              },
+              {
+                "lectureScript.lectureScript.slides.script": {
+                  $regex: search,
+                  $options: "i",
+                },
+              },
+            ],
+          },
+        });
+      }
+
+      // lookup owner
+      pipeline.push(
+        {
+          $lookup: {
+            from: "users",
+            let: { ownerId: "$userId" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$_id", "$$ownerId"] } } },
+              { $project: { account: 1, fullName: 1, _id: 1, avatarUrl: 1 } },
+            ],
+            as: "owner",
           },
         },
         {
-          $sort: { [sortBy]: order === "asc" ? 1 : -1 },
+          $unwind: {
+            path: "$owner",
+            preserveNullAndEmptyArrays: true,
+          },
+        }
+      );
+
+      // lookup tất cả permission (để xác định group share)
+      pipeline.push({
+        $lookup: {
+          from: "lecturevideopermissions",
+          let: { videoId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$lectureVideoId", "$$videoId"] },
+              },
+            },
+            { $project: { permissionType: 1, userId: 1, _id: 0 } },
+          ],
+          as: "permissions",
         },
+      });
+
+      // sort + paginate
+      pipeline.push(
+        { $sort: { [sortBy]: order === "asc" ? 1 : -1 } },
         {
           $facet: {
             data: [{ $skip: skip }, { $limit: limit }],
             totalCount: [{ $count: "count" }],
           },
-        },
-      ];
+        }
+      );
 
-      const result = await LectureVideo.aggregate(pipeline);
-      const videos = result[0].data || [];
-      const total = result[0].totalCount[0]?.count || 0;
+      // Chạy aggregate
+      const aggResult = await LectureVideo.aggregate(pipeline);
+      const videos = aggResult[0].data || [];
+      const total = aggResult[0].totalCount[0]?.count || 0;
 
       return res.json({
         data: videos,
@@ -117,10 +169,14 @@ class LectureVideoController {
       const userId = req.user.id;
       const videoId = req.params.id;
 
-      const lectureVideo = await LectureVideo.findById(videoId);
+      const lectureVideo = await LectureVideo.findById(videoId).populate(
+        "lectureScriptId",
+        "lectureScript"
+      );
       if (!lectureVideo)
         return res.status(404).json({ error: "Lecture video not found." });
 
+      let lectureVideoData = lectureVideo;
       // Kiểm tra quyền truy cập
       if (!lectureVideo.isPublic) {
         const owner = lectureVideo.userId.toString() === userId;
@@ -128,6 +184,8 @@ class LectureVideoController {
           userId,
           lectureVideoId: videoId,
         });
+
+        console.log(permission);
 
         // Lấy danh sách các lớp học được cấp quyền vào bài giảng
         const lectureClassrooms = await ClassroomLectureVideo.find({
@@ -146,9 +204,54 @@ class LectureVideoController {
         if (!owner && !permission && !userInClassroom) {
           return res.status(403).json({ error: "Access denied." });
         }
+
+        if (permission) {
+          lectureVideoData = {
+            ...lectureVideo._doc,
+            permissionType: permission.permissionType,
+          };
+        }
       }
 
-      res.status(200).json(lectureVideo);
+      res.status(200).json(lectureVideoData);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [GET] /lecture-video/user/:userId
+  async getLectureVideosByUserId(req, res, next) {
+    const currentUserId = req.user.id;
+    const userId = req.params.userId;
+    try {
+      // Phân trang
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 10;
+      const skip = (page - 1) * limit;
+
+      const publicLectureVideos = await LectureVideo.find({
+        userId,
+        isPublic: true,
+      })
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 })
+        .populate("userId", "account fullName email avatarUrl");
+
+      const totalPublicLectureVideos = await LectureVideo.countDocuments({
+        userId,
+        isPublic: true,
+      });
+
+      return res.json({
+        data: publicLectureVideos,
+        pagination: {
+          total: totalPublicLectureVideos,
+          page,
+          limit,
+          totalPages: Math.ceil(totalPublicLectureVideos / limit),
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -252,6 +355,25 @@ class LectureVideoController {
     }
   }
 
+  // [PATCH] /lecture-video/:id
+  async renameLectureVideo(req, res, next) {
+    try {
+      const videoId = req.params.id;
+      const { lectureName } = req.body;
+
+      const lectureVideo = await LectureVideo.findById(videoId);
+      if (!lectureVideo) {
+        return res.status(404).json({ error: "Lecture video not found." });
+      }
+      lectureVideo.lectureName = lectureName;
+      await lectureVideo.save();
+
+      res.status(200).json(lectureVideo);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // [DELETE] /lecture-video/:id
   async deleteLectureVideo(req, res, next) {
     try {
@@ -279,9 +401,16 @@ class LectureVideoController {
       const videoId = req.params.id;
       const { isPublic, sharedWith } = req.body;
 
+      // Kiểm tra số lượng người chia sẻ
+      if (sharedWith && sharedWith.length > 200) {
+        return res
+          .status(400)
+          .json({ error: "You can share with up to 200 users only." });
+      }
+
       const lectureVideo = await LectureVideo.findOne({
         _id: videoId,
-        userId,
+        // userId,
       });
 
       if (!lectureVideo) {
@@ -290,38 +419,45 @@ class LectureVideoController {
 
       const lectureScript = await LectureScript.findOne({
         _id: lectureVideo.lectureScriptId,
-        userId,
+        // userId,
       });
 
       if (!lectureScript) {
         return res.status(404).json({ error: "Lecture script not found." });
       }
 
-      if (isPublic) {
-        lectureVideo.isPublic = isPublic;
-        lectureScript.isPublic = isPublic;
+      lectureVideo.isPublic = isPublic;
+      lectureScript.isPublic = isPublic;
 
-        await lectureVideo.save();
-        await lectureScript.save();
+      await lectureVideo.save();
+      await lectureScript.save();
+
+      if (!isPublic && (!sharedWith || sharedWith.length === 0)) {
+        await LectureVideoPermission.deleteMany({
+          lectureVideoId: videoId,
+        });
       }
 
       if (!isPublic && sharedWith && sharedWith.length > 0) {
+        // Xóa tất cả quyền chia sẻ cũ cho video này
+        await LectureVideoPermission.deleteMany({
+          lectureVideoId: videoId,
+        });
+
+        // Thêm quyền chia sẻ mới
         for (const user of sharedWith) {
-          await LectureVideoPermission.findOneAndUpdate(
-            {
-              userId: user.userId,
-              lectureVideoId: videoId,
-              lectureScriptId: lectureVideo.lectureScriptId,
-            },
-            { $set: { permissionType: user.permissionType } }, // Thay đổi giá trị của trường
-            { upsert: true } // Tạo mới nếu không tìm thấy
-          );
+          await LectureVideoPermission.create({
+            userId: user.userId,
+            lectureVideoId: videoId,
+            lectureScriptId: lectureVideo.lectureScriptId,
+            permissionType: user.permissionType,
+          });
         }
       }
 
       const permissions = await LectureVideoPermission.find({
         lectureVideoId: videoId,
-      }).populate("userId", "account fullName email");
+      }).populate("userId", "account fullName email avatarUrl");
 
       res.status(200).json({
         message: "Lecture video shared successfully.",
@@ -332,6 +468,7 @@ class LectureVideoController {
             account: permission.userId.account,
             fullName: permission.userId.fullName,
             email: permission.userId.email,
+            avatarUrl: permission.userId.avatarUrl,
             permissionType: permission.permissionType,
           };
         }),
@@ -345,19 +482,16 @@ class LectureVideoController {
   // [GET] /lecture-video/share/:id - Lấy danh sách người dùng có quyền truy cập lecture video
   async getLectureVideoPermissions(req, res, next) {
     try {
-      const userId = req.user.id;
+      // const userId = req.user.id;
       const videoId = req.params.id;
-      const video = await LectureVideo.findOne({
-        _id: videoId,
-        userId,
-      });
+      const video = await LectureVideo.findById(videoId);
       if (!video) {
         return res.status(404).json({ error: "Lecture video not found." });
       }
 
       const permissions = await LectureVideoPermission.find({
         lectureVideoId: videoId,
-      }).populate("userId", "account fullName email");
+      }).populate("userId", "account fullName email avatarUrl");
 
       const sharedWith = permissions.map((permission) => {
         return {
@@ -365,6 +499,7 @@ class LectureVideoController {
           account: permission.userId.account,
           fullName: permission.userId.fullName,
           email: permission.userId.email,
+          avatarUrl: permission.userId.avatarUrl,
           permissionType: permission.permissionType,
         };
       });

@@ -5,16 +5,32 @@ class UserController {
   // [GET] /user
   async getAllUsers(req, res, next) {
     try {
-      const users = await User.find().populate("profile");
-      const responseData = users.map((user) => {
-        return {
+      const { search } = req.query;
+      const userId = req.user.id;
+
+      const searchConditions = search
+        ? {
+            $or: [
+              { fullName: { $regex: search, $options: "i" } },
+              { email: { $regex: search, $options: "i" } },
+              { account: { $regex: search, $options: "i" } },
+            ],
+          }
+        : {};
+
+      const users = await User.find(searchConditions).populate("profile");
+
+      const responseData = users
+        .filter((user) => user._id.toString() !== userId)
+        .map((user) => ({
           id: user._id,
           fullName: user.fullName,
           email: user.email,
           account: user.account,
+          avatarUrl: user.avatarUrl,
           profile: user.profile,
-        };
-      });
+        }));
+
       res.status(200).json(responseData);
     } catch (error) {
       next(error);
@@ -26,18 +42,43 @@ class UserController {
     const userId = req.user.id;
     const { id } = req.params;
     try {
+      console.log(userId);
+      // Tìm user
       const user = await User.findById(id).populate("profile");
       if (!user) {
         return res.status(404).json({ error: "User not found." });
       }
+
+      // Nếu profile là null, tìm profile theo userId
+      if (!user.profile) {
+        const profile = await Profile.findOne({ userId: id });
+        if (profile) {
+          user.profile = profile;
+
+          // Update profile id
+          await User.findByIdAndUpdate(id, { profile: profile._id });
+        }
+      }
+
+      let profileData;
+      if (user.profile) {
+        if (user.profile.isPublic || userId.toString() === id.toString()) {
+          profileData = user.profile;
+        } else {
+          profileData = null;
+        }
+      }
+
       if (userId !== id) {
         res.json({
-          id: user._id,
+          _id: user._id,
           fullName: user.fullName,
           email: user.email,
           account: user.account,
-          profile: user.profile,
-        })
+          avatarUrl: user.avatarUrl,
+          createdAt: user.createdAt,
+          profile: profileData,
+        });
       } else {
         res.status(200).json(user);
       }
@@ -46,13 +87,16 @@ class UserController {
     }
   }
 
-  // [PUT] /user/:id
+  // [PUT] /user
   async updateUser(req, res, next) {
     const userId = req.user.id;
     try {
-      const updatedUser = await User.findByIdAndUpdate(userId, req.body, {
+      const { avatarUrl, ...userData } = req.body;
+
+      const updatedUser = await User.findByIdAndUpdate(userId, userData, {
         new: true,
       }).populate("profile");
+      
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found." });
       }
@@ -119,6 +163,67 @@ class UserController {
       }
       await User.findByIdAndDelete(user._id);
       res.status(200).json({ message: "User permanently deleted by admin." });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [GET] /user/profile/:userId
+  async getUserProfile(req, res, next) {
+    const userId = req.user.id;
+    const id = req.params.userId;
+    try {
+      const profile = await Profile.findOne({ userId: id }).populate("userId");
+
+      if (profile?.isPublic || userId.toString() === id.toString()) {
+        return profile ? res.status(200).json(profile) : res.json({});
+      } else {
+        return res.status(403).json({
+          error: "Profile is private. Access denied.",
+        });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [PUT] /user/profile
+  async updateUserProfile(req, res, next) {
+    const userId = req.user.id;
+    const userProfile = req.body;
+    try {
+      const updatedProfile = await Profile.findOneAndUpdate(
+        { userId },
+        userProfile,
+        {
+          new: true,
+        }
+      );
+      if (!updatedProfile) {
+        const newProfile = new Profile({ userId, ...userProfile });
+        await newProfile.save();
+
+        res.json(newProfile);
+      } else {
+        res.status(200).json(updatedProfile);
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [POST] /avatar
+  async uploadAvater(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const avatarUrl = req.file.location;
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { avatarUrl: avatarUrl },
+        { new: true }
+      );
+
+      res.json(updatedUser);
     } catch (error) {
       next(error);
     }

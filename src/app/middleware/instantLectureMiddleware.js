@@ -9,6 +9,27 @@ const uploadImageToS3 = (storageFolder) => async (req, res, next) => {
   }
 
   if (req.file) {
+    // Kiểm tra MIME type
+    const validMimeTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/jpg",
+    ];
+    if (!validMimeTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({
+        error: "File must be a valid image (JPEG, PNG, GIF)",
+      });
+    }
+
+    // Kiểm tra kích thước (tối đa 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (req.file.size > maxSize) {
+      return res.status(400).json({
+        error: "File size must not exceed 10MB",
+      });
+    }
+
     try {
       const fileUrl = await uploadToS3AndGetUrl(req.file, storageFolder);
       req.file.location = fileUrl;
@@ -27,7 +48,7 @@ const createInstantLectureSchema = Joi.object({
   teachingStyle: Joi.string().required(),
   languageCode: Joi.string().required(),
   voiceType: Joi.string().required(),
-});
+}).unknown(true);
 
 // Schema Joi for send message
 const sendMessageSchema = Joi.object({
@@ -35,7 +56,7 @@ const sendMessageSchema = Joi.object({
   teachingStyle: Joi.string().required(),
   languageCode: Joi.string().required(),
   voiceType: Joi.string().required(),
-});
+}).unknown(true);
 
 // Schema Joi for update instant lecture
 const updateInstantLectureSchema = Joi.object({

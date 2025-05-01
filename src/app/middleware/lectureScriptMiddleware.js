@@ -36,6 +36,10 @@ const lectureScriptSchema = Joi.object({
   specificRequirements: Joi.string().allow("").optional(),
 });
 
+const updateLectureScriptSchema = Joi.object({
+  lectureScript: Joi.object().required(),
+});
+
 const validateLectureScript = (req, res, next) => {
   const { error } = lectureScriptSchema.validate(req.body, {
     abortEarly: true,
@@ -50,4 +54,18 @@ const validateLectureScript = (req, res, next) => {
   next();
 };
 
-module.exports = { validateLectureScript };
+const validateUpdateLectureScript = (req, res, next) => {
+  const { error } = updateLectureScriptSchema.validate(req.body, {
+    abortEarly: true,
+  });
+
+  if (error) {
+    return res
+      .status(400)
+      .json({ error: error.details.map((detail) => detail.message) });
+  }
+
+  next();
+}
+
+module.exports = { validateLectureScript, validateUpdateLectureScript };

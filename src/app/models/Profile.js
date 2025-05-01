@@ -11,36 +11,17 @@ const ProfileSchema = new Schema({
     type: String,
     default: "",
   },
-  academicLevel: {
-    type: String,
-    enum: [
-      "School",
-      "High School",
-      "Undergraduate",
-      "Postgraduate",
-      "Researcher",
-    ],
-    required: true,
+  dateOfBirth: {
+    type: Date,
+    default: null,
   },
-  preferences: {
-    language: {
-      type: String,
-      default: "English",
-    },
-    lectureLevel: {
-      type: String,
-      enum: ["Beginner", "Intermediate", "Advanced"],
-      default: "Intermediate",
-    },
-    presentationStyle: {
-      type: String,
-      enum: ["Concise", "Detailed"],
-      default: "Concise",
-    },
-    notificationsEnabled: {
-      type: Boolean,
-      default: true,
-    },
+  phoneNumber: {
+    type: String,
+    default: "",
+  },
+  isPublic: {
+    type: Boolean,
+    default: false,
   },
 });
 

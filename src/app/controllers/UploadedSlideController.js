@@ -1,6 +1,10 @@
 const path = require("path");
 const UploadedSlide = require("../models/UploadedSlide");
 const { EUploadedSlide } = require("../constants/uploaded-slide");
+const {
+  getPresignedDownloadUrl,
+  downloadFileFromS3,
+} = require("../../utils/aws-s3");
 
 class UploadedSlideController {
   // [GET] /uploaded-slide
@@ -25,9 +29,9 @@ class UploadedSlideController {
         return res.status(404).json({ error: "Slide not found." });
       }
 
-      if (slide.userId.toString() !== userId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
+      // if (slide.userId.toString() !== userId) {
+      //   return res.status(403).json({ error: "Access denied" });
+      // }
 
       res.status(200).json(slide);
     } catch (error) {
@@ -46,27 +50,25 @@ class UploadedSlideController {
         return res.status(404).json({ error: "Slide not found." });
       }
 
-      if (slide.userId.toString() !== userId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
+      // if (slide.userId.toString() !== userId) {
+      //   return res.status(403).json({ error: "Access denied" });
+      // }
 
-      // const filePath = path.join(__dirname, "../../../", slide.fileUrl); // Đường dẫn thực tế tới file
+      const file = await downloadFileFromS3(slide.fileUrl);
 
-      // res.setHeader(
-      //   "Access-Control-Expose-Headers", // Cho phép FE truy cập header từ response
-      //   "Content-Disposition",
-      //   `attachment; filename=${slide[EUploadedSlide.FILE_NAME]}`
-      // );
-      // res.download(filePath, slide[EUploadedSlide.FILE_NAME], (err) => {
-      //   if (err) {
-      //     console.error("Error sending file:", err);
-      //     res.status(500).json({ error: "Failed to download file." });
-      //   }
-      // });
-      
-      const presignedUrl = await getPresignedDownloadUrl(slide.fileUrl);
+      // Cài đặt các header cho response để trình duyệt nhận diện là file tải về
+      res.setHeader(
+        "Access-Control-Expose-Headers", // Cho phép FE truy cập header từ response
+        "Content-Disposition"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename*=${encodeURIComponent(slide.fileName)}`
+      );
+      res.setHeader("Content-Type", "application/octet-stream");
 
-      res.json({ fileUrl: presignedUrl });
+      // Trả file về cho frontend
+      res.send(file);
     } catch (error) {
       next(error);
     }
@@ -81,10 +83,9 @@ class UploadedSlideController {
 
     try {
       const userId = req.user.id;
-      const decodedFileName = Buffer.from(
-        file.originalname,
-        "latin1"
-      ).toString("utf8");
+      const decodedFileName = Buffer.from(file.originalname, "latin1").toString(
+        "utf8"
+      );
       const slide = new UploadedSlide({
         userId,
         [EUploadedSlide.FILE_NAME]: decodedFileName,

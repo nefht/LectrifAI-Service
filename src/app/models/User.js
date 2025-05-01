@@ -13,10 +13,13 @@ const UserSchema = new Schema(
     },
     account: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ["student", "instructor"] },
     profile: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Profile",
+      default: null,
+    },
+    avatarUrl: {
+      type: String,
       default: null,
     },
   },

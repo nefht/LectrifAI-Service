@@ -4,6 +4,7 @@ const lectureScriptController = require("../app/controllers/LectureScriptControl
 const { verifyToken } = require("../app/middleware/authMiddleware");
 const {
   validateLectureScript,
+  validateUpdateLectureScript,
 } = require("../app/middleware/lectureScriptMiddleware");
 
 router.get("/", verifyToken, lectureScriptController.getLectureScripts);
@@ -14,6 +15,17 @@ router.post(
   validateLectureScript,
   lectureScriptController.createLectureScript
 );
-router.patch("/:id", verifyToken, lectureScriptController.updateLectureScript);
+router.patch(
+  "/edit-quiz/:id",
+  verifyToken,
+  validateUpdateLectureScript,
+  lectureScriptController.updateLectureScript
+);
+router.patch(
+  "/:id",
+  verifyToken,
+  validateUpdateLectureScript,
+  lectureScriptController.updateLectureScript
+);
 
 module.exports = router;

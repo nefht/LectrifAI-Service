@@ -6,6 +6,7 @@ const { searchImage, isImageValid } = require("../../utils/custom-search");
 const {
   generateSlideContentWithGoogleAIV1,
   generateSlideContentWithGoogleAIV2,
+  generateSlideContentWithGoogleAIV3,
 } = require("../../utils/google-ai");
 const SlideContent = require("../models/SlideContent");
 const UploadedFile = require("../models/UploadedFile");
@@ -231,7 +232,8 @@ class GeneratedSlideController {
   // [POST] /slide-content/v2 - Case 2: File (docx, pptx, pdf)
   async createSlideContentV2(req, res, next) {
     const userId = req.user.id;
-    const { topicFileId, writingTone, language, numberOfSlides, templateCode } = req.body;
+    const { topicFileId, writingTone, language, numberOfSlides, templateCode } =
+      req.body;
     console.log("Request body:", req.body);
 
     const uploadedFile = await UploadedFile.findById(topicFileId);
@@ -310,6 +312,90 @@ class GeneratedSlideController {
     }
   }
 
+  // [POST] /slide-content/v3 - Case 3: Document text
+  async createSlideContentV3(req, res, next) {
+    const userId = req.user.id;
+    const {
+      topicParagraph,
+      writingTone,
+      language,
+      numberOfSlides,
+      templateCode,
+    } = req.body;
+    console.log("Request body:", req.body);
+
+    try {
+      const response = await generateSlideContentWithGoogleAIV3(
+        topicParagraph,
+        writingTone,
+        language,
+        numberOfSlides,
+      );
+      console.log("Response from Google AI:", response);
+
+      const rawText = response.candidates[0]?.content?.parts[0]?.text;
+      if (!rawText) {
+        throw new Error("No valid content returned from AI API.");
+      }
+
+      let presentationData;
+      try {
+        presentationData = JSON.parse(
+          rawText.replace(/```json|```/g, "").trim()
+        );
+      } catch (err) {
+        throw new Error("Error parsing JSON content: " + err.message);
+      }
+
+      console.log("Parsed presentation data:", presentationData);
+
+      if (
+        !presentationData ||
+        !presentationData.slides ||
+        presentationData.slides.length === 0
+      ) {
+        throw new Error("No slides generated from AI API response.");
+      }
+
+      for (let slide of presentationData.slides) {
+        if (slide.imageSuggestions && slide.imageSuggestions.length > 0) {
+          let imageUrls = [];
+
+          for (let keyword of slide.imageSuggestions) {
+            const imageUrl = await searchImage(keyword);
+            if (imageUrl && (await isImageValid(imageUrl.imageUrl))) {
+              const proxyUrl = `${
+                process.env.SERVER_URL
+              }/slide-content/image-proxy?url=${encodeURIComponent(
+                imageUrl.imageUrl
+              )}`;
+              imageUrls.push({
+                title: imageUrl.title,
+                imageUrl: proxyUrl,
+              });
+            }
+          }
+          slide.imageUrls = imageUrls;
+        }
+      }
+
+      const slideContent = new SlideContent({
+        userId,
+        name: presentationData.title,
+        topicParagraph,
+        writingTone,
+        language,
+        numberOfSlides,
+        templateCode,
+        slideData: presentationData,
+      });
+      await slideContent.save();
+      res.json(slideContent);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // [PATCH] /slide-content/:id
   async updateSlideContent(req, res, next) {
     const userId = req.user.id;
@@ -325,6 +411,24 @@ class GeneratedSlideController {
         return res.status(404).json({ error: "Slide content not found." });
       }
       res.json(slideContent);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [DELETE] /slide-content/:id
+  async deleteSlideContent(req, res, next) {
+    const userId = req.user.id;
+    const { id } = req.params;
+    try {
+      const slideContent = await SlideContent.findOneAndDelete({
+        _id: id,
+        userId,
+      });
+      if (!slideContent) {
+        return res.status(404).json({ error: "Slide content not found." });
+      }
+      res.json({ message: "Slide content deleted successfully." });
     } catch (error) {
       next(error);
     }

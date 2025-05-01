@@ -55,17 +55,26 @@ class ChatMessageController {
           .map((slide) => slide.script)
           .join("\n\n");
 
-        const quizData = lectureScript.lectureScript.slides
-          .filter((slide) => slide.quiz !== null)
-          .map(
-            (slide, index) =>
-              `Quiz ${index + 1}: ${
-                slide.quiz.question
-              }\nOptions: ${slide.quiz.options.join(", ")}\nAnswer: ${
+        const quizData =
+          lectureScript.lectureScript.slides
+            .filter((slide) => slide.quiz !== null)
+            .map((slide, index) => {
+              if (
+                slide.quiz &&
+                slide.quiz.options &&
+                slide.quiz.question &&
                 slide.quiz.answer
-              }\n`
-          )
-          .join("\n");
+              ) {
+                return `Quiz ${index + 1}: ${
+                  slide?.quiz?.question
+                }\nOptions: ${slide.quiz.options.join(", ")}\nAnswer: ${
+                  slide?.quiz?.answer
+                }\n`;
+              }
+              return null;
+            })
+            .filter((quiz) => quiz !== null)
+            .join("\n") ?? "There are no quizzes available for this lecture.";
 
         lectureContext = `
           You are an AI tutor specializing in this lecture. 

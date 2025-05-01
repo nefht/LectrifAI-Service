@@ -67,6 +67,71 @@ class ClassroomQuizController {
       next(error);
     }
   }
+
+  // [DELETE] /classroom-quiz/:id - Delete quiz by ID
+  async deleteClassroomQuizById(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const classroomQuizId = req.params.id;
+      const classroomQuiz = await ClassroomQuiz.findById(classroomQuizId).populate(
+        "classroomId",
+        "userId"
+      );
+
+      if (!classroomQuiz) {
+        return res
+          .status(404)
+          .json({ message: "Classroom quiz material not found" });
+      }
+
+      if (userId !== classroomQuiz.classroomId.userId.toString()) {
+        return res.status(403).json({
+          message: "You are not allowed to access this quiz material",
+        });
+      }
+
+      await ClassroomQuiz.deleteOne({ _id: classroomQuizId });
+
+      res.status(200).json({ message: "Classroom quiz deleted successfully" });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [PUT] /classroom-quiz/:id - Update classroom quiz by ID
+  async updateClassroomQuizById(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const classroomQuizId = req.params.id;
+      const { startTime, endTime, duration } = req.body;
+
+      const classroomQuiz = await ClassroomQuiz.findById(classroomQuizId).populate(
+        "classroomId",
+        "userId"
+      );
+
+      if (!classroomQuiz) {
+        return res
+          .status(404)
+          .json({ message: "Classroom quiz material not found" });
+      }
+
+      if (userId !== classroomQuiz.classroomId.userId.toString()) {
+        return res.status(403).json({
+          message: "You are not allowed to access this quiz material",
+        });
+      }
+
+      await ClassroomQuiz.updateOne(
+        { _id: classroomQuizId },
+        { startTime, endTime, duration }
+      );
+
+      res.status(200).json({ message: "Classroom quiz updated successfully" });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new ClassroomQuizController();

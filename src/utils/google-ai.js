@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * Case 1: Short topic
  */
 const generateSlideContentWithGoogleAIV1 = async (
-  topic,
+  topic, // topicText
   writingTone,
   language,
   numberOfSlides,
@@ -18,8 +18,7 @@ const generateSlideContentWithGoogleAIV1 = async (
 ) => {
   const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" }); // Or your preferred model
 
-  const minSlidesForTableOfContent = 5;
-  const basePrompt = `
+  const prompt = `
     You are a **presentation content generator**.  
     Your task is to create **structured content** for a PowerPoint presentation on the topic: **"${topic}"**.
 
@@ -41,13 +40,7 @@ const generateSlideContentWithGoogleAIV1 = async (
       **1-3 images per slide** is ideal:
         - **1 image**: Best for focusing on the key concept of the slide.
         - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
-  `;
 
-  let prompt = "";
-
-  if (numberOfSlides <= minSlidesForTableOfContent) {
-    prompt = `
-    ${basePrompt}
     # **Expected JSON Output**
     \`\`\`json
     {
@@ -91,100 +84,6 @@ const generateSlideContentWithGoogleAIV1 = async (
     - **Make sure the presentation aligns with the required writing tone and language.**
     - **The last "Thank you" slide should be included with no bullet points or images.**
   `;
-  } else {
-    prompt = `
-    ${basePrompt}
-    # **Expected JSON Output**
-    \`\`\`json
-    {
-        "title": "Presentation Title",
-        "slides": [
-            {
-                "heading": "Table of Content",
-                "bulletPoints": [
-                    "Main section title 1",
-                    "Main section title 2",
-                    "Main section title 3",
-                    "Main section title 4",
-                ],
-                "imageSuggestions": []
-            },
-            {
-                "heading": "Main section title 1",
-                "bulletPoints": [],
-                "imageSuggestions": []
-            },
-            {
-                "heading": "Slide Title",
-                "bulletPoints": [
-                    "Main point 1",
-                    [
-                        "Supporting detail 1",
-                        "Supporting detail 2"
-                    ],
-                    "Main point 2"
-                ],
-                "imageSuggestions": ["keyword1", "keyword2"]
-            },
-            {
-                "heading": "Next Slide Title",
-                "bulletPoints": [
-                    "Main point",
-                    [
-                        "Sub-point 1",
-                        "Sub-point 2"
-                    ]
-                ],
-                "imageSuggestions": ["keyword3", "keyword4"]
-            },
-            {
-                "heading": "Main section title 2",
-                "bulletPoints": [],
-                "imageSuggestions": []
-            },
-            {
-                "heading": "Slide Title",
-                "bulletPoints": [
-                    "Main point 1",
-                    [
-                        "Supporting detail 1",
-                        "Supporting detail 2"
-                    ],
-                    "Main point 2"
-                ],
-                "imageSuggestions": ["keyword5", "keyword6"]
-            },
-            {
-                "heading": "Next Slide Title",
-                "bulletPoints": [
-                    "Main point",
-                    [
-                        "Sub-point 1",
-                        "Sub-point 2"
-                    ]
-                ],
-                "imageSuggestions": ["keyword7", "keyword8"]
-            },
-            {
-                "heading": "Thank You",
-                "bulletPoints": [],
-                "imageSuggestions": []
-            }
-        ]
-    }
-    \`\`\`
-
-    # **Guidelines for AI:**
-    - **Ensure the slide content is structured and logically organized.**
-    - **Do NOT add extra commentary or text; only return the JSON response.**
-    - **Make sure the presentation aligns with the required writing tone and language.**
-    - **The first slide must be a Table of Content slide with bullet points representing the main sections titles of the presentation.
-      The main sections title may not be slide headings, and each main section may cover multiple slides.
-      The bullet points should not contain any sub-array points (sub-points) and the slide should not include any imageSuggestions.**
-    - **Between slides, there should be a slide with only heading containing the main section title and no bullet points or imageSuggestions.**
-    - **The last "Thank you" slide should be included with no bullet points or images.**
-  `;
-  }
 
   const result = await model.generateContent(prompt);
   const response = await result.response;
@@ -287,6 +186,11 @@ const generateSlideContentWithGoogleAIV2 = async (
                     ]
                 ],
                 "imageSuggestions": ["keyword3", "keyword4"]
+            },
+            {
+                "heading": "Thank You",
+                "bulletPoints": [],
+                "imageSuggestions": []
             }
         ]
     }
@@ -298,6 +202,7 @@ const generateSlideContentWithGoogleAIV2 = async (
     - **If the file contains images, describe them and generate related slide content.**
     - **Do NOT add extra commentary; only return the JSON response.**
     - **Ensure alignment with the requested writing tone and language.**
+    - **The last "Thank you" slide should be included with no bullet points or images.**
   `;
 
   const result = await model.generateContent([
@@ -310,6 +215,95 @@ const generateSlideContentWithGoogleAIV2 = async (
     prompt,
   ]);
 
+  const response = await result.response;
+  return response;
+};
+
+/**
+ * SLIDE
+ * Generate slide content using Google AI from a long paragraph input.
+ * Case 3: Long paragraph (topicParagraph)
+ */
+const generateSlideContentWithGoogleAIV3 = async (
+  topicParagraph,
+  writingTone,
+  language,
+  numberOfSlides
+) => {
+  const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" }); // Or your preferred model
+
+  const prompt = `
+    You are a **presentation content generator**.  
+    Your task is to read the following paragraph and create **structured content** for a PowerPoint presentation based on the ideas and concepts it contains.
+
+    # **Paragraph to Analyze:**
+    """${topicParagraph}"""
+    Carefully analyze the paragraph to identify the main topics, key ideas, and supporting details.
+    Do not just extract surface-level keywords—distill the paragraph into meaningful slide topics and structured content.
+
+    # **Presentation Specifications:**
+    - **Number of Slides**: ${numberOfSlides ?? "**10**"} slides.
+    - **Writing Tone**: The content should be written in a **${
+      writingTone ?? "formal"
+    }** tone.
+    - **Language**: The presentation must be in **${language ?? "English"}**.
+
+    # **Slide Structure:**
+    - **Slide Title**: Provide a clear and concise title for each slide.
+    - **Slide Content**: Each slide should have **key bullet points** summarizing the most important information.
+    - **Sub-bullet Points**: If necessary, include **sub-bullets** under each main bullet point.
+    - **Image Suggestions**: Suggest relevant images that could be included on each slide (**provide descriptive keywords** for image searching).
+      **Do NOT force image suggestions** into every slide—use them **only where necessary**.
+      **Avoid overly generic or unrelated keywords**.
+      **1-3 images per slide** is ideal:
+        - **1 image**: Best for focusing on the key concept of the slide.
+        - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
+
+    # **Expected JSON Output**
+    \`\`\`json
+    {
+        "title": "Presentation Title",
+        "slides": [
+            {
+                "heading": "Slide Title",
+                "bulletPoints": [
+                    "Main point 1",
+                    [
+                        "Supporting detail 1",
+                        "Supporting detail 2"
+                    ],
+                    "Main point 2"
+                ],
+                "imageSuggestions": ["keyword1", "keyword2"]
+            },
+            {
+                "heading": "Next Slide Title",
+                "bulletPoints": [
+                    "Main point",
+                    [
+                        "Sub-point 1",
+                        "Sub-point 2"
+                    ]
+                ],
+                "imageSuggestions": ["keyword3", "keyword4"]
+            },
+            {
+                "heading": "Thank You",
+                "bulletPoints": [],
+                "imageSuggestions": []
+            }
+        ]
+    }
+    \`\`\`
+
+    # **Guidelines for AI:**
+    - **Ensure the slide content is structured and logically organized.**
+    - **Do NOT add extra commentary or text; only return the JSON response.**
+    - **Make sure the presentation aligns with the required writing tone and language.**
+    - **The last "Thank you" slide should be included with no bullet points or images.**
+  `;
+
+  const result = await model.generateContent(prompt);
   const response = await result.response;
   return response;
 };
@@ -517,6 +511,7 @@ const generateQuizWithGoogleAIV1 = async (
          The quiz must be created in the specified language: ${language}.
         `
       }
+      **Do NOT add extra commentary or text; only return the JSON response.**
   `;
 
   if (questionType === "multiple choice") {
@@ -722,6 +717,7 @@ const generateQuizWithGoogleAIV2 = async (
     Analyze the provided PDF file and generate a quiz based on its key concepts and information. 
     The quiz should be tailored to assess the learner's understanding of the content at the ${academicLevel} level, ensuring the questions are appropriately challenging for that level. 
     The quiz must be created in the specified language: ${language}.
+    **Do NOT add extra commentary or text; only return the JSON response.**
   `;
 
   if (questionType === "multiple choice") {
@@ -897,7 +893,9 @@ const checkShortAnswer = async (
   points,
   userAnswer
 ) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" });
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-pro-preview-03-25",
+  });
 
   let prompt = `
     You are an expert evaluator. Your task is to assess the answer provided by the user based on the following information:
@@ -935,6 +933,7 @@ const checkShortAnswer = async (
 module.exports = {
   generateSlideContentWithGoogleAIV1,
   generateSlideContentWithGoogleAIV2,
+  generateSlideContentWithGoogleAIV3,
   generateLectureScriptWithGoogleAI,
   generateQuizWithGoogleAIV1,
   generateQuizWithGoogleAIV2,

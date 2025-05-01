@@ -18,6 +18,7 @@ router.get(
   LectureVideoController.getLectureVideoPermissions
 );
 
+router.get("/user/:userId", verifyToken, LectureVideoController.getLectureVideosByUserId);
 router.get("/:id", verifyToken, LectureVideoController.getLectureVideoById);
 router.delete("/:id", verifyToken, LectureVideoController.deleteLectureVideo);
 router.put(
@@ -25,6 +26,12 @@ router.put(
   verifyToken,
   validateUpdateLectureVideo,
   LectureVideoController.updateLectureVideo
+);
+router.patch(
+  "/:id",
+  verifyToken,
+  validateUpdateLectureVideo,
+  LectureVideoController.renameLectureVideo
 );
 router.post(
   "/",

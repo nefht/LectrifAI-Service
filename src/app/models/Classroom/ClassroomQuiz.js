@@ -14,7 +14,7 @@ const ClassroomQuizSchema = new mongoose.Schema(
     },
     startTime: { type: Date }, // Thời gian mở làm bài
     endTime: { type: Date }, // Thời gian đóng làm bài
-    duration: { type: Number }, // Thời gian làm bài (phút)
+    duration: { type: Number }, // Thời gian làm bài (giây)
   },
   { timestamps: true }
 );

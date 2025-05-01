@@ -9,7 +9,7 @@ const createQuizSchema = Joi.object({
   language: Joi.string().required(),
   questionType: Joi.string().required(),
   numberOfQuestions: Joi.number().integer().min(1).max(30).required(),
-  specificRequirements: Joi.string().optional(),
+  specificRequirements: Joi.string().optional().allow(""),
 }).custom((value, helpers) => {
   // Kiểm tra nếu cả topic và documentText đều có giá trị hoặc đều null
   if (
@@ -27,7 +27,7 @@ const createQuizFromFileSchema = Joi.object({
   language: Joi.string().required(),
   questionType: Joi.string().required(),
   numberOfQuestions: Joi.number().integer().min(1).max(30).required(),
-  specificRequirements: Joi.string().optional(),
+  specificRequirements: Joi.string().optional().allow(""),
 });
 
 // Schema for checking short answer

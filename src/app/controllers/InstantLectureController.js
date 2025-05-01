@@ -134,9 +134,9 @@ class InstantLectureController {
         Always ensure your tone remains warm, professional, and pedagogical — as if you are helping a student one-on-one.
       `;
 
-      // if (message) {
-      //   context += `\n\nUser message: ${message}`;
-      // }
+      if (message) {
+        context += `\n\nUser message: ${message}`;
+      }
 
       // Tạo cuộc trò chuyện mới
       const instantLecture = new InstantLecture({
@@ -157,7 +157,7 @@ class InstantLectureController {
       const userContent = image
         ? [
             createUserContent([
-              message ?? "",
+              context ?? "",
               createPartFromUri(image.uri, image.mimeType),
             ]),
           ]

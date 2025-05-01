@@ -29,19 +29,8 @@
 const Joi = require("joi");
 
 // Schema validation cho request
-const slideRequestSchema = Joi.object({
-  // Case 1: Short topic
-  topicText: Joi.string().max(255),
-  
-  // Case 2: File (docx, pptx, pdf)
-  topicFile: Joi.object({
-    fileName: Joi.string().required(),
-    fileSize: Joi.number().min(1),
-    fileUrl: Joi.string().uri().required(),
-  }),
-
-  // Case 3: Long paragraph
-  topicParagraph: Joi.string().min(20).max(8000),
+const slideRequestSchemaV1 = Joi.object({
+  topicText: Joi.string().max(255).required(),
   writingTone: Joi.string().required(),
   language: Joi.string().max(50).required(),
   numberOfSlides: Joi.number().integer().min(1).max(50).required(),
@@ -49,31 +38,44 @@ const slideRequestSchema = Joi.object({
   specificRequirements: Joi.string().allow("").optional(),
 });
 
+const slideRequestSchemaV2 = Joi.object({
+  topicFile: Joi.object({
+    fileName: Joi.string().required(),
+    fileSize: Joi.number().min(1),
+    fileUrl: Joi.string().uri().required(),
+  }).required(),
+  writingTone: Joi.string().required(),
+  language: Joi.string().max(50).required(),
+  numberOfSlides: Joi.number().integer().min(1).max(50).required(),
+  templateCode: Joi.string().required(),
+});
+
+const slideRequestSchemaV3 = Joi.object({
+  topicParagraph: Joi.string().min(100).max(8000).required(),
+  writingTone: Joi.string().required(),
+  language: Joi.string().max(50).required(),
+  numberOfSlides: Joi.number().integer().min(1).max(50).required(),
+  templateCode: Joi.string().required(),
+});
+
 // Middleware validate request
-const validateSlideRequest = (req, res, next) => {
-  const { topicText, topicFileId, topicParagraph } = req.body;
-
-  // Đảm bảo ít nhất 1 trong 3 trường `topicText`, `topicFileId`, hoặc `topicParagraph` có dữ liệu
-  if (!topicText && !topicFileId && !topicParagraph) {
-    return res.status(400).json({
-      error: [
-        "You must provide either topicText, topicFileId, or topicParagraph.",
-      ],
-    });
-  }
-
-  // Kiểm tra dữ liệu với Joi
-  const { error } = slideRequestSchema.validate(req.body, {
-    allowUnknown: true,
-  });
-
-  if (error) {
-    return res.status(400).json({
-      error: error.details.map((err) => err.message),
-    });
-  }
-
-  next();
+const validate = (schema) => {
+  return (req, res, next) => {
+    const { error } = schema.validate(req.body);
+    if (error) {
+      const errorMessages = error.details.map((err) => err.message);
+      return res.status(400).json({ error: errorMessages });
+    }
+    next();
+  };
 };
 
-module.exports = { validateSlideRequest };
+const validateSlideRequestV1 = validate(slideRequestSchemaV1);
+const validateSlideRequestV2 = validate(slideRequestSchemaV2);
+const validateSlideRequestV3 = validate(slideRequestSchemaV3);
+
+module.exports = {
+  validateSlideRequestV1,
+  validateSlideRequestV2,
+  validateSlideRequestV3,
+};

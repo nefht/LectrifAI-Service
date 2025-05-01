@@ -13,7 +13,7 @@ const {
 
 router.post("/register", validateRegister, authController.register);
 router.post("/login", validateLogin, authController.login);
-router.post(
+router.put(
   "/change-password",
   verifyToken,
   validateChangePassword,
@@ -24,7 +24,7 @@ router.post(
   validateForgotPassword,
   authController.forgotPassword
 );
-router.post(
+router.put(
   "/reset-password",
   validateResetPassword,
   authController.resetPassword

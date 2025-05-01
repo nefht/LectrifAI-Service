@@ -161,6 +161,33 @@ class LectureScriptController {
       next(error);
     }
   }
+
+  // [PATCH] /lecture-script/edit-quiz/:id
+  async editQuiz(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const lectureScriptId = req.params.id;
+      const lectureScript = req.body;
+
+      const oldLectureScript = await LectureScript.findById(lectureScriptId);
+
+      // Kiểm tra quyền truy cập
+      const owner = oldLectureScript.userId.toString() === userId;
+      const permission = await LectureVideoPermission.findOne({
+        userId,
+        lectureScriptId,
+      });
+      if (!owner && !permission.permissionType === "EDITOR") {
+        return res.status(403).json({ error: "Access denied." });
+      } 
+
+      oldLectureScript.lectureScript = lectureScript;
+      await oldLectureScript.save();
+      res.status(200).json(oldLectureScript);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new LectureScriptController();

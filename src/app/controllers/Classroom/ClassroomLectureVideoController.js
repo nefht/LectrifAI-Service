@@ -41,6 +41,35 @@ class ClassroomLectureVideoController {
       next(error);
     }
   }
+
+  // [DELETE] /classroom-lecture/:id - Delete lecture video by ID
+  async deleteClassroomLectureVideoById(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const classroomLectureId = req.params.id;
+      const classroomLectureVideo = await ClassroomLectureVideo.findById(
+        classroomLectureId
+      ).populate("classroomId", "userId");
+
+      if (!classroomLectureVideo) {
+        return res
+          .status(404)
+          .json({ message: "Classroom lecture video not found" });
+      }
+
+      if (userId !== classroomQuiz.classroomId.userId.toString()) {
+        return res.status(403).json({
+          message: "You are not allowed to access this lecture video",
+        });
+      }
+
+      await ClassroomLectureVideo.deleteOne({ _id: classroomLectureId });
+
+      res.status(200).json({ message: "Lecture video deleted successfully" });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new ClassroomLectureVideoController();

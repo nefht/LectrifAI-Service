@@ -8,6 +8,7 @@ const ClassroomSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    inviteToken: { type: String, default: null },
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }

@@ -1,4 +1,6 @@
+const { ObjectId } = require("mongoose").Types;
 const { GoogleGenAI } = require("@google/genai");
+const { v4: uuidv4 } = require("uuid");
 const {
   generateQuizWithGoogleAIV1,
   checkShortAnswer,
@@ -7,6 +9,7 @@ const {
 const Quiz = require("../models/Quiz");
 const QuizPermission = require("../models/permissions/QuizPermission");
 const ClassroomQuiz = require("../models/Classroom/ClassroomQuiz");
+const MultipleQuizRoom = require("../models/MultipleQuizRoom");
 
 const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
 
@@ -15,14 +18,13 @@ class QuizController {
   async getQuizzes(req, res, next) {
     try {
       const userId = req.user.id;
+      const userIdObject = new ObjectId(userId);
+
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;
       const skip = (page - 1) * limit;
 
       const { search, sortBy = "createdAt", order = "desc" } = req.query;
-
-      // Tạo filter object
-      let filter = {};
 
       // Lấy các quiz mà người dùng có quyền truy cập
       const permissions = await QuizPermission.find({
@@ -31,40 +33,105 @@ class QuizController {
       }).select("quizId");
       const quizIds = permissions.map((permission) => permission.quizId);
 
-      filter = {
-        $or: [{ userId }, { isPublic: true }, { _id: { $in: quizIds } }],
+      const accessFilter = {
+        $or: [
+          { userId: userIdObject },
+          // { isPublic: true },
+          { _id: { $in: quizIds } },
+        ],
       };
 
+      // Build aggregation pipeline
+      const pipeline = [];
+
+      // filter quyền truy cập trước
+      pipeline.push({ $match: accessFilter });
+
+      // nếu có search thì filter tiếp
       if (search) {
-        filter = {
-          ...filter,
-          $or: [
-            { topic: { $regex: search, $options: "i" } },
-            { documentText: { $regex: search, $options: "i" } },
-            { fileUrl: { $regex: search, $options: "i" } },
-            { quizName: { $regex: search, $options: "i" } },
-            { "quizData.quizzes.question": { $regex: search, $options: "i" } },
-            { "quizData.quizzes.answer": { $regex: search, $options: "i" } },
-            {
-              "quizData.quizzes.explanation": { $regex: search, $options: "i" },
-            },
-            {
-              "quizData.quizzes.options": {
-                $elemMatch: { $regex: search, $options: "i" },
+        pipeline.push({
+          $match: {
+            $or: [
+              { topic: { $regex: search, $options: "i" } },
+              { documentText: { $regex: search, $options: "i" } },
+              { fileUrl: { $regex: search, $options: "i" } },
+              { quizName: { $regex: search, $options: "i" } },
+              {
+                "quizData.quizzes.question": { $regex: search, $options: "i" },
               },
-            },
-          ],
-        };
+              { "quizData.quizzes.answer": { $regex: search, $options: "i" } },
+              {
+                "quizData.quizzes.explanation": {
+                  $regex: search,
+                  $options: "i",
+                },
+              },
+              {
+                "quizData.quizzes.options": {
+                  $elemMatch: { $regex: search, $options: "i" },
+                },
+              },
+            ],
+          },
+        });
       }
 
-      // Tạo sort object
-      const sort = {};
-      sort[sortBy] = order === "asc" ? 1 : -1;
+      // lookup owner
+      pipeline.push(
+        {
+          $lookup: {
+            from: "users",
+            localField: "userId",
+            foreignField: "_id",
+            as: "owner",
+            let: { ownerId: "$userId" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$_id", "$$ownerId"] } } },
+              { $project: { account: 1, fullName: 1, _id: 1, avatarUrl: 1 } },
+            ],
+            as: "owner",
+          },
+        },
+        {
+          $unwind: {
+            path: "$owner",
+            preserveNullAndEmptyArrays: true,
+          },
+        }
+      );
 
-      const [total, quizzes] = await Promise.all([
-        Quiz.countDocuments(filter),
-        Quiz.find(filter).sort(sort).skip(skip).limit(limit),
-      ]);
+      // lookup tất cả permission (để xác định group share)
+      pipeline.push({
+        $lookup: {
+          from: "quizpermissions",
+          let: { quizId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$quizId", "$$quizId"] },
+              },
+            },
+            { $project: { permissionType: 1, userId: 1, _id: 0 } },
+          ],
+          as: "permissions",
+        },
+      });
+
+      // sort + paginate
+      pipeline.push(
+        { $sort: { [sortBy]: order === "asc" ? 1 : -1 } },
+        {
+          $facet: {
+            data: [{ $skip: skip }, { $limit: limit }],
+            totalCount: [{ $count: "count" }],
+          },
+        }
+      );
+
+      // Chạy aggregate
+      const aggResult = await Quiz.aggregate(pipeline);
+      const quizzes = aggResult[0].data || [];
+      const total = aggResult[0].totalCount[0]?.count || 0;
 
       res.status(200).json({
         data: quizzes,
@@ -79,13 +146,17 @@ class QuizController {
       next(error);
     }
   }
+
   // [GET] /quiz/:id
   async getQuizById(req, res, next) {
     try {
       const { id } = req.params;
       const userId = req.user.id;
 
-      const quiz = await Quiz.findById(id);
+      const quiz = await Quiz.findById(id).populate(
+        "userId",
+        "fullName email account avatarUrl"
+      );
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found." });
       }
@@ -118,6 +189,44 @@ class QuizController {
       }
 
       res.status(200).json(quiz);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [GET] /quiz/user/:userId
+  async getQuizzesByUserId(req, res, next) {
+    const currentUserId = req.user.id;
+    const userId = req.params.userId;
+    try {
+      // Phân trang
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 10;
+      const skip = (page - 1) * limit;
+
+      const publicQuizzes = await Quiz.find({
+        userId,
+        isPublic: true,
+      })
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 })
+        .populate("userId", "account fullName email avatarUrl");
+
+      const totalPublicQuizzes = await Quiz.countDocuments({
+        userId,
+        isPublic: true,
+      });
+
+      return res.json({
+        data: publicQuizzes,
+        pagination: {
+          total: totalPublicQuizzes,
+          page,
+          limit,
+          totalPages: Math.ceil(totalPublicQuizzes / limit),
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -197,12 +306,12 @@ class QuizController {
       });
       await quiz.save();
 
-      const QuizPermission = new QuizPermission({
+      const quizPermission = new QuizPermission({
         userId,
         quizId: quiz._id,
         permissionType: "OWNER",
       });
-      await QuizPermission.save();
+      await quizPermission.save();
 
       res.json(quiz);
     } catch (error) {
@@ -259,6 +368,14 @@ class QuizController {
         quizData,
       });
       await quiz.save();
+
+      const quizPermission = new QuizPermission({
+        userId,
+        quizId: quiz._id,
+        permissionType: "OWNER",
+      });
+      await quizPermission.save();
+
       res.json(quiz);
     } catch (error) {
       next(error);
@@ -375,39 +492,45 @@ class QuizController {
       const quizId = req.params.id;
       const { isPublic, sharedWith } = req.body;
 
-      const quiz = await Quiz.findOne({ _id: quizId, userId });
+      // Kiểm tra số lượng người chia sẻ
+      if (sharedWith && sharedWith.length > 200) {
+        return res.status(400).json({
+          error: "You can only share with a maximum of 200 users.",
+        });
+      }
+
+      const quiz = await Quiz.findOne({ _id: quizId });
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found." });
       }
 
-      if (isPublic) {
-        quiz.isPublic = isPublic;
+      quiz.isPublic = isPublic;
+
+      await quiz.save();
+
+      if (!isPublic && (!sharedWith || sharedWith.length === 0)) {
+        await QuizPermission.deleteMany({
+          quizId,
+        });
       }
 
       if (!isPublic && sharedWith && sharedWith.length > 0) {
+        // Xóa tất cả quyền chia sẻ cũ cho quiz
+        await QuizPermission.deleteMany({ quizId });
+
+        // Thêm quyền chia sẻ mới
         for (const user of sharedWith) {
-          if (user.permissionType === "REMOVE") {
-            // Xóa quyền của người dùng nếu permissionType là 'REMOVE'
-            await QuizPermission.findOneAndDelete({
-              quizId,
-              userId: user.userId,
-            });
-          } else {
-            await QuizPermission.findOneAndUpdate(
-              {
-                userId: user.userId,
-                quizId,
-              },
-              { $set: { permissionType: user.permissionType } }, // Thay đổi giá trị của permissionType
-              { upsert: true } // Tạo mới nếu không tìm thấy
-            );
-          }
+          await QuizPermission.create({
+            userId: user.userId,
+            quizId,
+            permissionType: user.permissionType,
+          });
         }
       }
 
       const permissions = await QuizPermission.find({
         quizId,
-      }).populate("userId", "account fullName email");
+      }).populate("userId", "account fullName email avatarUrl");
 
       res.status(200).json({
         message: "Quiz shared successfully.",
@@ -418,6 +541,7 @@ class QuizController {
             account: permission.userId.account,
             fullName: permission.userId.fullName,
             email: permission.userId.email,
+            avatarUrl: permission.userId.avatarUrl,
             permissionType: permission.permissionType,
           };
         }),
@@ -440,7 +564,7 @@ class QuizController {
 
       const permissions = await QuizPermission.find({
         quizId,
-      }).populate("userId", "account fullName email");
+      }).populate("userId", "account fullName email avatarUrl");
 
       const sharedWith = permissions.map((permission) => {
         return {
@@ -448,6 +572,7 @@ class QuizController {
           account: permission.userId.account,
           fullName: permission.userId.fullName,
           email: permission.userId.email,
+          avatarUrl: permission.userId.avatarUrl,
           permissionType: permission.permissionType,
         };
       });
@@ -474,6 +599,84 @@ class QuizController {
       // }
 
       res.status(200).json(permission);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [POST] /quiz/multiple-play
+  async createMultiplePlayRoom(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const { quizId, timeLimit, maxPlayers } = req.body;
+
+      const inviteToken = uuidv4();
+
+      const room = new MultipleQuizRoom({
+        userId,
+        quizId,
+        timeLimit,
+        maxPlayers,
+        players: [],
+        inviteToken,
+      });
+
+      await room.save();
+      res.status(200).json(room);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [GET] /quiz/multiple-play/join/:token
+  async joinMultiplePlayRoom(req, res, next) {
+    try {
+      const { token } = req.params;
+      const userId = req.user.id;
+
+      // Tìm phòng bằng token
+      const room = await MultipleQuizRoom.findOne({ inviteToken: token });
+
+      if (!room) {
+        return res.status(404).json({ message: "Room not found" });
+      }
+
+      // Kiểm tra xem người dùng đã tham gia chưa
+      if (room.players.includes(userId)) {
+        return res
+          .status(200)
+          .json({ message: "You have already joined this room" });
+      }
+
+      // Kiểm tra xem phòng có còn chỗ không
+      if (room.players.length >= room.maxPlayers) {
+        return res.status(200).json({ message: "Room is full" });
+      }
+
+      // Thêm người chơi vào phòng
+      room.players.push(userId);
+      await room.save();
+
+      // Trả về thông tin phòng và số người chơi hiện tại
+      res.status(200).json({
+        message: "Joined room successfully",
+        roomId: room._id,
+        players: room.players,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [GET] /multiple-play/:id
+  async getRoomInfo(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const id = req.params.id;
+
+      const room = await MultipleQuizRoom.findById(id);
+
+      res.json(room);
     } catch (error) {
       next(error);
     }

@@ -41,14 +41,14 @@ class AuthController {
     const { account, password, rememberMe } = req.body;
     const user = await User.findOne({ account });
     if (!user) {
-      return res.status(400).json({ error: "Invalid email or password." });
+      return res.status(400).json({ error: "Invalid account." });
     }
 
     try {
       // Check password
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
-        return res.status(400).json({ error: "Invalid email or password." });
+        return res.status(400).json({ error: "Invalid password." });
       }
 
       // Create JWT token
@@ -62,6 +62,7 @@ class AuthController {
           account: user.account,
           email: user.email,
           fullName: user.fullName,
+          avatarUrl: user.avatarUrl,
         },
       });
     } catch (error) {
@@ -69,7 +70,7 @@ class AuthController {
     }
   }
 
-  // [POST] /auth/change-password
+  // [PUT] /auth/change-password
   async changePassword(req, res, next) {
     try {
       const { oldPassword, newPassword } = req.body;
@@ -109,7 +110,7 @@ class AuthController {
 
       // Create JWT token to reset password
       const resetToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-        expiresIn: "10m",
+        expiresIn: "15m",
       });
 
       const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
@@ -117,19 +118,19 @@ class AuthController {
       const mailOptions = {
         to: user.email,
         from: process.env.EMAIL_USER,
-        subject: "Password Reset Request",
+        subject: "[LectrifAI] Password Reset Request",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
             <h2 style="color: #333;">Password Reset Request</h2>
-            <p>Hi ${user.name},</p>
+            <p>Hi ${user.fullName},</p>
             <p>You requested to reset your password. Click the button below to reset it:</p>
             <div style="text-align: center;">
-              <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+              <a href="${resetUrl}" style="background-color:rgb(174, 1, 190); color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                 Reset Password
               </a>
             </div>
             <p style="margin-top: 20px;">If you did not request this, you can ignore this email.</p>
-            <p>Thanks, <br><strong>Your Company Team</strong></p>
+            <p>Thanks, <br><strong>LectrifAI Team</strong></p>
           </div>
         `,
       };
@@ -141,13 +142,18 @@ class AuthController {
     }
   }
 
-  // [POST] /auth/reset-password
+  // [PUT] /auth/reset-password
   async resetPassword(req, res, next) {
     try {
       const { resetToken, newPassword } = req.body;
 
       // Verify JWT token
       const decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+      if (!decoded) {
+        return res
+          .status(400)
+          .json({ error: "Invalid or expired reset token" });
+      }
       const user = await User.findById(decoded.id);
       if (!user) {
         return res
