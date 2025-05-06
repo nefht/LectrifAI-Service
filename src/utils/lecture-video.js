@@ -1,3 +1,270 @@
+// const { spawn } = require("child_process");
+// const ffmpeg = require("fluent-ffmpeg");
+// const ffmpegStatic = require("ffmpeg-static");
+// const ffprobeStatic = require("ffprobe-static");
+// const fs = require("fs-extra");
+// const path = require("path");
+// const { uploadToS3AndGetUrl } = require("./aws-s3");
+// const { convertPdfToImages } = require("./pdf-to-img");
+// const { generateSpeech, getVoiceName } = require("./text-to-speech");
+
+// // Tốc độ giọng nói
+// const SPEAKING_RATES = {
+//   slow: 0.8,
+//   normal: 1.0,
+//   fast: 1.2,
+// };
+
+// // Cấu hình đường dẫn cho `ffmpeg` và `ffprobe`
+// ffmpeg.setFfmpegPath(ffmpegStatic);
+// ffmpeg.setFfprobePath(ffprobeStatic.path);
+
+// /**
+//  * Tạo video từ file slide PDF và script bài giảng
+//  * @param {Buffer} pdfBuffer - File PDF chứa các slide
+//  * @param {Array} slides - Danh sách nội dung script từng slide (có quiz timestamps)
+//  * @param {string} folder - Thư mục trên S3 để lưu video
+//  * @param {string} languageCode - "vi-VN", "en-US"
+//  * @param {string} voiceType - "MALE", "FEMALE"
+//  * @param {string} lectureSpeed - Tốc độ giọng nói
+//  * @returns {Promise<{ videoUrl: string, quizTimestamps: number[] }>}
+//  */
+// const createVideo = async (
+//   pdfBuffer,
+//   slides,
+//   folder,
+//   languageCode,
+//   voiceType,
+//   lectureSpeed
+// ) => {
+//   try {
+//     const tempDir = path.join(__dirname, "../temp");
+//     await fs.ensureDir(tempDir);
+
+//     // Chuyển đổi PDF thành danh sách ảnh
+//     const imageBuffers = await convertPdfToImages(pdfBuffer);
+//     if (!imageBuffers || imageBuffers.length === 0) {
+//       throw new Error("No images were generated from PDF.");
+//     }
+//     console.log(`📸 Đã tạo ${imageBuffers.length} ảnh từ PDF.`);
+
+//     let currentTime = 0;
+//     const quizTimestamps = [];
+//     const videoFiles = [];
+//     const voiceName = await getVoiceName(languageCode, voiceType);
+//     const speakingRate = SPEAKING_RATES[lectureSpeed] || 1.0;
+
+//     let slidesToProcess = slides;
+//     let imageBuffersToProcess = imageBuffers;
+
+//     const numScripts = slides.length;
+//     const numImages = imageBuffers.length;
+//     if (numScripts < numImages) {
+//       slidesToProcess = [
+//         ...slides,
+//         ...new Array(numScripts - numImages).fill({ script: "" }),
+//       ];
+//     } else if (numScripts > numImages) {
+//       imageBuffersToProcess = [
+//         ...imageBuffers,
+//         ...new Array(numScripts - numImages).fill(
+//           imageBuffers[imageBuffers.length - 1]
+//         ),
+//       ];
+//     }
+
+//     for (let i = 0; i < slidesToProcess.length; i++) {
+//       console.log(`🎞️ Đang xử lý slide ${i + 1}/${slidesToProcess.length}...`);
+
+//       const slide = slidesToProcess[i];
+//       const slideImagePath = path.join(tempDir, `slide-${i}.png`);
+//       await fs.writeFile(slideImagePath, imageBuffersToProcess[i]);
+//       console.log(`🖼️ Đã lưu ảnh slide ${i + 1}: ${slideImagePath}`);
+
+//       if (!fs.existsSync(slideImagePath)) {
+//         throw new Error(`❌ Không tìm thấy file ảnh: ${slideImagePath}`);
+//       }
+
+//       let speechFile;
+//       try {
+//         speechFile = await generateSpeech(
+//           slide.script,
+//           languageCode,
+//           voiceName,
+//           speakingRate
+//         );
+//         console.log(`🔊 Speech file tạo thành công: ${speechFile}`);
+//       } catch (err) {
+//         console.warn(
+//           `⚠️ Không thể tạo speech file cho slide ${
+//             i + 1
+//           }, dùng âm thanh mặc định.`
+//         );
+//         speechFile = path.join(__dirname, "silence.wav"); // Âm thanh mặc định (im lặng)
+//       }
+
+//       if (!fs.existsSync(speechFile)) {
+//         throw new Error(`❌ Không tìm thấy file âm thanh: ${speechFile}`);
+//       }
+
+//       const tempVideoPath = path.join(tempDir, `slide-${i}.mp4`);
+//       console.log(
+//         `🎥 Tạo video: Ảnh = ${slideImagePath}, Âm thanh = ${speechFile}, Đầu ra = ${tempVideoPath}`
+//       );
+
+//       // Lấy thời lượng file speech của 1 slide
+//       const speechDuration = await getAudioDuration(speechFile);
+
+//       await new Promise((resolve, reject) => {
+//         ffmpeg()
+//           .input(slideImagePath)
+//           .loop(speechDuration) // Loop ảnh để tạo video
+//           .input(speechFile)
+//           .output(tempVideoPath)
+//           .outputOptions([
+//             "-c:v libx264",
+//             "-preset slow", // Chuyển từ slow -> medium -> ultrafast cho nhanh hơn
+//             "-tune stillimage", // Tối ưu hóa việc mã hóa video khi đầu vào là ảnh tĩnh
+//             "-crf 23", // Tăng từ 23 -> 26 -> 28 (giảm chất lượng nhưng encode nhanh hơn)
+//             "-pix_fmt yuv420p", // Định dạng pixel phổ biến và tương thích với nhiều trình phát
+//             "-r 25", // Đồng bộ FPS (Frame rate)
+//             "-g 30", // Đảm bảo keyframe hợp lệ
+//             "-movflags +faststart", // Tối ưu cho web playback
+//           ])
+//           .on("end", resolve)
+//           .on("error", reject)
+//           .run();
+//       });
+
+//       console.log(`🎬 Đã tạo video cho slide ${i + 1}: ${tempVideoPath}`);
+//       videoFiles.push(tempVideoPath);
+
+//       currentTime += speechDuration;
+
+//       // // Lấy thời điểm có quiz
+//       // if (slide.quiz) quizTimestamps.push(currentTime);
+
+//       // Lấy thời điểm cuối cùng của từng slide
+//       quizTimestamps.push(currentTime);
+//     }
+
+//     const finalVideoPath = path.join(
+//       tempDir,
+//       `lecture-video-${Date.now()}.mp4`
+//     );
+//     const concatFilePath = path.join(tempDir, "input.txt");
+
+//     // Ghi danh sách file video vào `input.txt`
+//     const concatContent = videoFiles
+//       .map((file) => `file '${path.resolve(file)}'`)
+//       .join("\n");
+//     await fs.writeFile(concatFilePath, concatContent, "utf-8");
+
+//     console.log("📜 Nội dung file input.txt:\n", concatContent);
+//     console.log("📜 Đang ghép video các slide...");
+
+//     // Kiểm tra tất cả file video có tồn tại không
+//     for (const file of videoFiles) {
+//       if (!fs.existsSync(file)) {
+//         throw new Error(`❌ File video bị thiếu: ${file}`);
+//       }
+//     }
+
+//     // Ghép video
+//     await new Promise((resolve, reject) => {
+//       // const ffmpegProcess = spawn(ffmpegStatic, [
+//       //   "-f",
+//       //   "concat",
+//       //   "-safe",
+//       //   "0",
+//       //   "-i",
+//       //   concatFilePath,
+//       //   "-c:v",
+//       //   "libx264",
+//       //   "-preset",
+//       //   "slow",
+//       //   "-crf",
+//       //   "23",
+//       //   "-bsf:v",
+//       //   "h264_mp4toannexb", // Fix lỗi bitstream
+//       //   "-movflags",
+//       //   "+faststart", // Tối ưu playback trên web
+//       //   "-r",
+//       //   "25", // Đồng bộ FPS
+//       //   "-g",
+//       //   "30", // Đảm bảo keyframe hợp lệ
+//       //   finalVideoPath,
+//       // ]);
+
+//       const ffmpegArgs = [
+//         "-f",
+//         "concat",
+//         "-safe",
+//         "0",
+//         "-i",
+//         concatFilePath,
+//         "-c",
+//         "copy", // Chỉ copy stream, không encode lại
+//         "-movflags",
+//         "+faststart",
+//         finalVideoPath,
+//       ];
+
+//       const ffmpegProcess = spawn(ffmpegStatic, ffmpegArgs);
+
+//       ffmpegProcess.stdout.on("data", (data) => console.log(`FFmpeg: ${data}`));
+//       ffmpegProcess.stderr.on("data", (data) => {
+//         console.error(`FFmpeg error: ${data}`);
+//       });
+
+//       ffmpegProcess.on("close", (code) => {
+//         if (code === 0) {
+//           console.log("✅ FFmpeg ghép video thành công!");
+//           resolve();
+//         } else {
+//           reject(new Error(`FFmpeg exited with code ${code}`));
+//         }
+//       });
+//     });
+
+//     console.log(`✅ Video hoàn tất: ${finalVideoPath}`);
+
+//     const videoUrl = await uploadToS3AndGetUrl(
+//       {
+//         buffer: fs.readFileSync(finalVideoPath),
+//         originalname: "lecture.mp4",
+//         mimetype: "video/mp4",
+//       },
+//       folder
+//     );
+
+//     console.log(`🚀 Đã upload video lên S3: ${videoUrl}`);
+
+//     await fs.remove(tempDir);
+
+//     return { videoUrl, quizTimestamps };
+//   } catch (error) {
+//     console.error("❌ Lỗi khi tạo video:", error.message);
+//     throw new Error("Error creating lecture video: " + error.message);
+//   }
+// };
+
+// /**
+//  * Lấy thời lượng của file audio
+//  * @param {string} audioFile - Đường dẫn file âm thanh
+//  * @returns {Promise<number>} - Thời gian (giây)
+//  */
+// const getAudioDuration = async (audioFile) => {
+//   return new Promise((resolve, reject) => {
+//     ffmpeg.ffprobe(audioFile, (err, metadata) => {
+//       if (err) reject(err);
+//       else resolve(metadata.format.duration);
+//     });
+//   });
+// };
+
+// module.exports = { createVideo };
+
 const { spawn } = require("child_process");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegStatic = require("ffmpeg-static");
@@ -7,6 +274,7 @@ const path = require("path");
 const { uploadToS3AndGetUrl } = require("./aws-s3");
 const { convertPdfToImages } = require("./pdf-to-img");
 const { generateSpeech, getVoiceName } = require("./text-to-speech");
+const os = require("os");
 
 // Tốc độ giọng nói
 const SPEAKING_RATES = {
@@ -18,6 +286,10 @@ const SPEAKING_RATES = {
 // Cấu hình đường dẫn cho `ffmpeg` và `ffprobe`
 ffmpeg.setFfmpegPath(ffmpegStatic);
 ffmpeg.setFfprobePath(ffprobeStatic.path);
+
+// Lấy số lượng CPU cores để tối ưu hóa việc xử lý song song
+const CPU_CORES = os.cpus().length;
+const MAX_PARALLEL_TASKS = Math.max(1, Math.min(CPU_CORES - 1, 4)); // Giới hạn số tác vụ song song
 
 /**
  * Tạo video từ file slide PDF và script bài giảng
@@ -37,9 +309,11 @@ const createVideo = async (
   voiceType,
   lectureSpeed
 ) => {
+  const startTime = Date.now();
   try {
-    const tempDir = path.join(__dirname, "../temp");
+    const tempDir = path.join(__dirname, "../temp", `job-${Date.now()}`);
     await fs.ensureDir(tempDir);
+    console.log(`🔧 Sử dụng tối đa ${MAX_PARALLEL_TASKS} tác vụ song song`);
 
     // Chuyển đổi PDF thành danh sách ảnh
     const imageBuffers = await convertPdfToImages(pdfBuffer);
@@ -59,10 +333,12 @@ const createVideo = async (
 
     const numScripts = slides.length;
     const numImages = imageBuffers.length;
+
+    // Đảm bảo số lượng script và ảnh bằng nhau
     if (numScripts < numImages) {
       slidesToProcess = [
         ...slides,
-        ...new Array(numScripts - numImages).fill({ script: "" }),
+        ...new Array(numImages - numScripts).fill({ script: "" }),
       ];
     } else if (numScripts > numImages) {
       imageBuffersToProcess = [
@@ -73,75 +349,150 @@ const createVideo = async (
       ];
     }
 
-    for (let i = 0; i < slidesToProcess.length; i++) {
-      console.log(`🎞️ Đang xử lý slide ${i + 1}/${slidesToProcess.length}...`);
+    // Tiền xử lý: Lưu tất cả ảnh trước
+    console.log(`🖼️ Đang lưu ${imageBuffersToProcess.length} ảnh...`);
+    await Promise.all(
+      imageBuffersToProcess.map(async (buffer, i) => {
+        const slideImagePath = path.join(tempDir, `slide-${i}.png`);
+        await fs.writeFile(slideImagePath, buffer);
+      })
+    );
 
-      const slide = slidesToProcess[i];
-      const slideImagePath = path.join(tempDir, `slide-${i}.png`);
-      await fs.writeFile(slideImagePath, imageBuffersToProcess[i]);
-      console.log(`🖼️ Đã lưu ảnh slide ${i + 1}: ${slideImagePath}`);
-
-      if (!fs.existsSync(slideImagePath)) {
-        throw new Error(`❌ Không tìm thấy file ảnh: ${slideImagePath}`);
-      }
-
-      let speechFile;
+    // Tiền xử lý: Tạo tất cả file audio trước
+    console.log(`🔊 Đang tạo tất cả file audio...`);
+    const audioGenerationTasks = slidesToProcess.map((slide, i) => async () => {
       try {
-        speechFile = await generateSpeech(
+        const speechFile = await generateSpeech(
           slide.script,
           languageCode,
           voiceName,
-          speakingRate
+          speakingRate,
+          tempDir,
+          i
         );
-        console.log(`🔊 Speech file tạo thành công: ${speechFile}`);
+        return { index: i, path: speechFile, success: true };
       } catch (err) {
         console.warn(
           `⚠️ Không thể tạo speech file cho slide ${
             i + 1
           }, dùng âm thanh mặc định.`
         );
-        speechFile = path.join(__dirname, "silence.mp3");
+        return {
+          index: i,
+          path: path.join(__dirname, "silence.wav"),
+          success: false,
+        };
       }
+    });
 
-      if (!fs.existsSync(speechFile)) {
-        throw new Error(`❌ Không tìm thấy file âm thanh: ${speechFile}`);
-      }
+    // Xử lý audio theo batch để không quá tải hệ thống
+    const audioResults = [];
+    const batchSize = MAX_PARALLEL_TASKS;
 
-      const tempVideoPath = path.join(tempDir, `slide-${i}.mp4`);
+    for (let i = 0; i < audioGenerationTasks.length; i += batchSize) {
+      const batch = audioGenerationTasks.slice(i, i + batchSize);
+      const batchResults = await Promise.all(batch.map((task) => task()));
+      audioResults.push(...batchResults);
       console.log(
-        `🎥 Tạo video: Ảnh = ${slideImagePath}, Âm thanh = ${speechFile}, Đầu ra = ${tempVideoPath}`
+        `🔊 Đã xử lý ${Math.min(i + batchSize, audioGenerationTasks.length)}/${
+          audioGenerationTasks.length
+        } audio files`
       );
+    }
+
+    // Sắp xếp kết quả theo thứ tự ban đầu
+    audioResults.sort((a, b) => a.index - b.index);
+    const speechFiles = audioResults.map((result) => result.path);
+
+    // Tính toán thời lượng của tất cả file audio
+    console.log(
+      `⏱️ Đang tính thời lượng cho ${speechFiles.length} file audio...`
+    );
+    // const durationTasks = speechFiles.map((file, index) => async () => {
+    //   const duration = await getAudioDuration(file);
+    //   return { index, duration };
+    // });
+
+    // // Xử lý duration theo batch
+    // const durationResults = [];
+    // for (let i = 0; i < durationTasks.length; i += batchSize) {
+    //   const batch = durationTasks.slice(i, i + batchSize);
+    //   const batchResults = await Promise.all(batch.map((task) => task()));
+    //   durationResults.push(...batchResults);
+    // }
+
+    // durationResults.sort((a, b) => a.index - b.index);
+    // const durations = durationResults.map((result) => result.duration);
+
+    // Xử lý từng slide thành video riêng theo batch
+    console.log(
+      `🎬 Đang tạo ${slidesToProcess.length} video cho từng slide...`
+    );
+    const videoProcessingTasks = slidesToProcess.map((_, i) => async () => {
+      const slideImagePath = path.join(tempDir, `slide-${i}.png`);
+      const speechFile = speechFiles[i];
+      const tempVideoPath = path.join(tempDir, `slide-${i}.mp4`);
+      // const speechDuration = durations[i];
+      const speechDuration = await getAudioDuration(speechFile);
 
       await new Promise((resolve, reject) => {
         ffmpeg()
           .input(slideImagePath)
+          // .loop(speechDuration)
+          .inputOptions(["-framerate 1"]) // Chỉ cần 1 frame mỗi giây vì ảnh tĩnh
           .input(speechFile)
-          .output(tempVideoPath)
           .outputOptions([
             "-c:v libx264",
-            "-preset slow",
-            "-crf 23",
-            "-r 25", // Đồng bộ FPS
-            "-g 30", // Đảm bảo keyframe hợp lệ
+            "-preset ultrafast", // Thay đổi từ slow sang ultrafast để tăng tốc độ
+            "-tune stillimage",
+            "-crf 28", // Tăng CRF để giảm thời gian mã hóa (23 -> 28)
+            "-pix_fmt yuv420p", // Định dạng pixel phổ biến và tương thích với nhiều trình phát
+            // "-r 30",
+            "-r 15", // Giảm fps
+            // "-movflags +faststart", // Hỗ trợ phát video nhanh hơn trên web
+            // "-shortest", // Đảm bảo video kết thúc khi audio kết thúc
           ])
+          .output(tempVideoPath)
           .on("end", resolve)
-          .on("error", reject)
+          .on("error", (err) => {
+            console.error(`Error creating video for slide ${i + 1}:`, err);
+            reject(err);
+          })
           .run();
       });
 
-      console.log(`🎬 Đã tạo video cho slide ${i + 1}: ${tempVideoPath}`);
-      videoFiles.push(tempVideoPath);
+      return {
+        index: i,
+        path: tempVideoPath,
+        duration: speechDuration,
+      };
+    });
 
-      const speechDuration = await getAudioDuration(speechFile);
-      currentTime += speechDuration;
+    // Xử lý video theo batch
+    let currentTimestamp = 0;
+    const processedVideos = [];
 
-      // // Lấy thời điểm có quiz
-      // if (slide.quiz) quizTimestamps.push(currentTime);
-
-      // Lấy thời điểm cuối cùng của từng slide
-      quizTimestamps.push(currentTime);
+    for (let i = 0; i < videoProcessingTasks.length; i += batchSize) {
+      const batch = videoProcessingTasks.slice(i, i + batchSize);
+      console.log(
+        `🎥 Đang xử lý batch video ${i / batchSize + 1}/${Math.ceil(
+          videoProcessingTasks.length / batchSize
+        )}...`
+      );
+      const batchResults = await Promise.all(batch.map((task) => task()));
+      processedVideos.push(...batchResults);
     }
 
+    // Sắp xếp lại các video và tính timestamps
+    processedVideos.sort((a, b) => a.index - b.index);
+
+    for (const video of processedVideos) {
+      videoFiles.push(video.path);
+      currentTimestamp += video.duration;
+      quizTimestamps.push(currentTimestamp);
+    }
+
+    // Ghép tất cả các video thành một video cuối cùng
     const finalVideoPath = path.join(
       tempDir,
       `lecture-video-${Date.now()}.mp4`
@@ -154,46 +505,33 @@ const createVideo = async (
       .join("\n");
     await fs.writeFile(concatFilePath, concatContent, "utf-8");
 
-    console.log("📜 Nội dung file input.txt:\n", concatContent);
     console.log("📜 Đang ghép video các slide...");
 
-    // Kiểm tra tất cả file video có tồn tại không
-    for (const file of videoFiles) {
-      if (!fs.existsSync(file)) {
-        throw new Error(`❌ File video bị thiếu: ${file}`);
-      }
-    }
-
-    // Ghép video
+    // Ghép video bằng cách copy stream thay vì encode lại
     await new Promise((resolve, reject) => {
-      const ffmpegProcess = spawn(ffmpegStatic, [
+      const ffmpegArgs = [
         "-f",
         "concat",
         "-safe",
         "0",
         "-i",
         concatFilePath,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "slow",
-        "-crf",
-        "23",
-        "-bsf:v",
-        "h264_mp4toannexb", // Fix lỗi bitstream
+        "-c",
+        "copy", // Chỉ copy stream, không encode lại lần nữa
         "-movflags",
-        "+faststart", // Tối ưu playback trên web
-        "-r",
-        "25", // Đồng bộ FPS
-        "-g",
-        "30", // Đảm bảo keyframe hợp lệ
+        "+faststart",
         finalVideoPath,
-      ]);
+      ];
 
-      ffmpegProcess.stdout.on("data", (data) => console.log(`FFmpeg: ${data}`));
-      ffmpegProcess.stderr.on("data", (data) =>
-        console.error(`FFmpeg lỗi: ${data}`)
-      );
+      const ffmpegProcess = spawn(ffmpegStatic, ffmpegArgs);
+
+      ffmpegProcess.stderr.on("data", (data) => {
+        const message = data.toString();
+        // Chỉ log những thông báo quan trọng để giảm output
+        if (message.includes("Error") || message.includes("error")) {
+          console.error(`FFmpeg error: ${message}`);
+        }
+      });
 
       ffmpegProcess.on("close", (code) => {
         if (code === 0) {
@@ -205,6 +543,9 @@ const createVideo = async (
       });
     });
 
+    const endTime = Date.now();
+    const processingTimeMinutes = ((endTime - startTime) / 60000).toFixed(2);
+    console.log(`⏱️ Tổng thời gian xử lý: ${processingTimeMinutes} phút`);
     console.log(`✅ Video hoàn tất: ${finalVideoPath}`);
 
     const videoUrl = await uploadToS3AndGetUrl(
@@ -218,11 +559,17 @@ const createVideo = async (
 
     console.log(`🚀 Đã upload video lên S3: ${videoUrl}`);
 
-    await fs.remove(tempDir);
+    // Dọn dẹp tệp tin tạm sau khi hoàn thành
+    try {
+      await fs.remove(tempDir);
+      console.log("🧹 Đã dọn dẹp thư mục tạm");
+    } catch (cleanupError) {
+      console.warn("⚠️ Không thể dọn dẹp thư mục tạm:", cleanupError.message);
+    }
 
     return { videoUrl, quizTimestamps };
   } catch (error) {
-    console.error("❌ Lỗi khi tạo video:", error.message);
+    console.error("❌ Lỗi khi tạo video:", error.message, error.stack);
     throw new Error("Error creating lecture video: " + error.message);
   }
 };

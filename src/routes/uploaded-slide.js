@@ -13,8 +13,6 @@ router.get("/download/:id", verifyToken, uploadedSlideController.downloadSlide);
 router.post(
   "/",
   verifyToken,
-  // slideUpload.single("file"),
-  // handleMulterError,
   upload.single("file"),
   convertFileToPdfMiddleware,
   uploadToS3("uploaded-slides"),

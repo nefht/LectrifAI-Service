@@ -16,7 +16,9 @@ const generateSlideContentWithGoogleAIV1 = async (
   numberOfSlides,
   specificRequirements
 ) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" }); // Or your preferred model
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+  }); // Or your preferred model
 
   const prompt = `
     You are a **presentation content generator**.  
@@ -101,7 +103,7 @@ const generateSlideContentWithGoogleAIV2 = async (
   language,
   numberOfSlides
 ) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   if (!file || !file.fileUrl) {
     throw new Error("Invalid file object. Ensure fileUrl is provided.");
@@ -230,7 +232,9 @@ const generateSlideContentWithGoogleAIV3 = async (
   language,
   numberOfSlides
 ) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" }); // Or your preferred model
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-pro-preview-03-25",
+  }); // Or your preferred model
 
   const prompt = `
     You are a **presentation content generator**.  
@@ -322,7 +326,7 @@ const generateLectureScriptWithGoogleAI = async (
   interactiveQuiz,
   specificRequirements
 ) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   if (!file || !file.fileUrl) {
     throw new Error("Invalid file object. Ensure fileUrl is provided.");
@@ -376,7 +380,7 @@ const generateLectureScriptWithGoogleAI = async (
         2. **Each slide should have EXACTLY ONE comprehensive script, no additional scripts should be created.**
         2. **For each slide, generate a well-structured and easy-to-understand lecture script.**
         3. **Ensure clarity and engagement, aligning with the selected teaching style and academic level.**
-        4. **Do not add any unnecessary formatting, symbols, extra line breaks or special characters to the script.**
+        4. **Ensure the script is clean and speech-friendly. Do not use quotation marks (neither " nor '), symbols, special characters, or extra line breaks — keep the content natural and plain for text-to-speech.**
     `;
 
   const quizPrompt = `
@@ -395,7 +399,7 @@ const generateLectureScriptWithGoogleAI = async (
                     "script": "Lecture script for slide 4.",
                     "quiz": {
                         "question": "A quiz question related to previous slides?",
-                        "options": ["Option A", "Option B", "Option C"],
+                        "options": ["Option A", "Option B", "Option C", "Option D"],
                         "answer": "Option B"
                     }
                 },
@@ -405,7 +409,7 @@ const generateLectureScriptWithGoogleAI = async (
                     "script": "Lecture script for slide 7.",
                     "quiz": {
                         "question": "Another quiz question?",
-                        "options": ["Option X", "Option Y", "Option Z"],
+                        "options": ["Option X", "Option Y", "Option Z", "Option W"],
                         "answer": "Option Y"
                     }
                 }
@@ -472,7 +476,9 @@ const generateQuizWithGoogleAIV1 = async (
   numberOfQuestions,
   specificRequirements
 ) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" });
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-pro-preview-03-25",
+  });
 
   let prompt = "";
 
@@ -680,7 +686,7 @@ const generateQuizWithGoogleAIV2 = async (
   numberOfQuestions,
   specificRequirements
 ) => {
-  const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   if (!fileUrl) {
     throw new Error("Invalid file object. Ensure fileUrl is provided.");
@@ -894,7 +900,7 @@ const checkShortAnswer = async (
   userAnswer
 ) => {
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-pro-preview-03-25",
+    model: "gemini-2.0-flash",
   });
 
   let prompt = `
@@ -914,7 +920,8 @@ const checkShortAnswer = async (
         - If the answer is partially correct, assign points accordingly.
         - If the answer is incorrect, assign a score of 0 points.
       Ensure that the **userScore** is always less than or equal to the maximum points available for the question (i.e., it cannot exceed ${points}).
-    
+    4. Detect the language used in the **User's Answer** and return your feedback **in the same language**.
+
     **Expected Output Format**:
     \`\`\`json
     {

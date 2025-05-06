@@ -164,7 +164,7 @@ class InstantLectureController {
         : [createUserContent([context])];
 
       const response = await genAI.models.generateContentStream({
-        model: "gemini-exp-1206",
+        model: "gemini-2.0-flash",
         contents: userContent,
         config: {
           systemInstruction: context,
@@ -227,7 +227,7 @@ class InstantLectureController {
           Only return the title text. Do not include lists, numbering, or explanations.`;
 
       const titleResult = await genAI.models.generateContent({
-        model: "gemini-exp-1206",
+        model: "gemini-2.0-flash",
         contents: lectureNamePrompt,
       });
 
@@ -331,13 +331,13 @@ class InstantLectureController {
       }
 
       const chat = genAI.chats.create({
-        model: "gemini-exp-1206",
+        model: "gemini-2.0-flash",
         // history: instantLecture.history,
       });
 
       const result = image
         ? await genAI.models.generateContentStream({
-            model: "gemini-exp-1206",
+            model: "gemini-2.0-flash",
             contents: [
               createUserContent([
                 userMessage ?? "",

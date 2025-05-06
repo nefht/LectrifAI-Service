@@ -7,6 +7,7 @@ const {
   validateSlideRequestV1,
   validateSlideRequestV2,
   validateSlideRequestV3,
+  validateUpdateSlideContent,
 } = require("../app/middleware/slideContentMiddleware");
 
 router.get("/image-proxy", generatedSlideController.getImageProxy);
@@ -33,12 +34,13 @@ router.post(
   generatedSlideController.createSlideContentV3
 );
 
-router.delete(
+router.delete("/:id", verifyToken, generatedSlideController.deleteSlideContent);
+
+router.patch(
   "/:id",
   verifyToken,
-  generatedSlideController.deleteSlideContent
+  validateUpdateSlideContent,
+  generatedSlideController.updateSlideContent
 );
-
-router.patch("/:id", verifyToken, generatedSlideController.updateSlideContent);
 
 module.exports = router;

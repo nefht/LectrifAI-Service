@@ -69,10 +69,10 @@ const studentAnswerSocket = (socket) => {
         for (const studentAnswer of studentAnswers) {
           if (studentAnswer.status === "in-progress") {
             // Nếu bài thi vẫn chưa hết thời gian, cập nhật trạng thái là 'disconnected'
-            if (studentAnswer.endedAt > currentTime) {
+            if (!student.endedAt || studentAnswer.endedAt > currentTime) {
               studentAnswer.status = "disconnected";
             } else {
-              studentnAnswer.status = "graded";
+              studentAnswer.status = "graded";
             }
 
             const quizData = studentAnswer.userAnswers;
@@ -134,6 +134,7 @@ const studentAnswerSocket = (socket) => {
 
             // Cập nhật điểm cho học sinh
             studentAnswer.score = totalScore;
+            studentAnswer.submittedAt = currentTime;
 
             await studentAnswer.save();
             console.log(

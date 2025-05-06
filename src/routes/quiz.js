@@ -6,10 +6,18 @@ const {
   validateCreateQuiz,
   validateCheckShortAnswer,
   validateCreateQuizFromFile,
+  validateShareQuiz,
+  validateUpdateQuizInfo,
+  validateUpdateQuiz,
 } = require("../app/middleware/quizMiddleware");
 const { upload, uploadToS3 } = require("../app/middleware/multerMiddleware");
 
-router.post("/share/:id", verifyToken, QuizController.shareQuiz);
+router.post(
+  "/share/:id",
+  verifyToken,
+  validateShareQuiz,
+  QuizController.shareQuiz
+);
 router.get("/multiple-play/:id", verifyToken, QuizController.getRoomInfo);
 router.get("/share/:id", verifyToken, QuizController.getQuizPermissions);
 router.get(
@@ -18,7 +26,11 @@ router.get(
   QuizController.getUserPermissionWithQuiz
 );
 
-router.get("/multiple-play/join/:token", verifyToken, QuizController.joinMultiplePlayRoom)
+router.get(
+  "/multiple-play/join/:token",
+  verifyToken,
+  QuizController.joinMultiplePlayRoom
+);
 router.get("/user/:userId", verifyToken, QuizController.getQuizzesByUserId);
 router.get("/:id", verifyToken, QuizController.getQuizById);
 router.get("/", verifyToken, QuizController.getQuizzes);
@@ -42,9 +54,23 @@ router.post(
   validateCheckShortAnswer,
   QuizController.checkUserShortAnswer
 );
-router.post("/multiple-play", verifyToken, QuizController.createMultiplePlayRoom)
-router.patch("/info/:id", verifyToken, QuizController.updateQuizInfo);
-router.patch("/:id", verifyToken, QuizController.updateQuiz);
+router.post(
+  "/multiple-play",
+  verifyToken,
+  QuizController.createMultiplePlayRoom
+);
+router.patch(
+  "/info/:id",
+  verifyToken,
+  validateUpdateQuizInfo,
+  QuizController.updateQuizInfo
+);
+router.patch(
+  "/:id",
+  verifyToken,
+  validateUpdateQuiz,
+  QuizController.updateQuiz
+);
 router.delete("/:id", verifyToken, QuizController.deleteQuiz);
 
 module.exports = router;

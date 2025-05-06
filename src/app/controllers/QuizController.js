@@ -284,7 +284,7 @@ class QuizController {
           Only return the title text. Do not include lists, numbering, or explanations.`;
 
         const titleResult = await genAI.models.generateContent({
-          model: "gemini-1.5-flash-8b",
+          model: "gemini-2.0-flash", // gemini-1.5-flash-8b -> gemini-2.0-flash
           contents: createNamePrompt,
         });
 

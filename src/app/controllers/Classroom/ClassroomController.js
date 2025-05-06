@@ -268,6 +268,12 @@ class ClassroomController {
         await classroom.save();
       }
 
+      if (classroom.userId.equals(userId)) {
+        return res.status(400).json({
+          message: "You are already the owner of this classroom",
+        });
+      }
+
       res.status(200).json({
         message: "Successfully joined the classroom",
         classroom,

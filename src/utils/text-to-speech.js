@@ -49,18 +49,21 @@ const generateSpeech = async (
   text,
   languageCode = "vi-VN",
   voiceName,
-  speakingRate
+  speakingRate,
+  tempDir = path.join(__dirname, "../temp"),
+  index = 0
 ) => {
   try {
-    const tempDir = path.join(__dirname, "../temp");
-    await fs.ensureDir(tempDir);
+    if (!text || !text.trim()) {
+      throw new Error("Script trống hoặc không hợp lệ");
+    }
 
-    const audioPath = path.join(tempDir, `speech-${Date.now()}.mp3`);
+    const audioPath = path.join(tempDir, `speech-${index}.wav`); // mp3 -> wav
 
     const request = {
       input: { text },
       voice: { languageCode, name: voiceName },
-      audioConfig: { audioEncoding: "MP3", speakingRate: speakingRate },
+      audioConfig: { audioEncoding: "LINEAR16", speakingRate: speakingRate }, // Đổi từ MP3 -> LINEAR16 khi ghép video không cần decode
     };
 
     const [response] = await client.synthesizeSpeech(request);

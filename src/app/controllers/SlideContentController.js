@@ -1,6 +1,3 @@
-// const { generateSlideContent } = require("../../utils/transformers-api");
-// const { generateSlideContent } = require("../../utils/transformers");
-// const { generateSlideContent } = require("../../utils/openai");
 const axios = require("axios");
 const { searchImage, isImageValid } = require("../../utils/custom-search");
 const {
