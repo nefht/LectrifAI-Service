@@ -3,7 +3,7 @@ const Joi = require("joi");
 const updateClassroomQuizSchema = Joi.object({
   startTime: Joi.date().optional(),
   endTime: Joi.date().optional(),
-  duration: Joi.number().integer().min(1).optional(),
+  duration: Joi.number().integer().min(0).optional(),
 });
 
 const validate = (schema) => {

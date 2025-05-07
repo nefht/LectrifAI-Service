@@ -10,7 +10,7 @@ const {
   validateAddLecturesToClassroom,
   validateCreateClassroom,
   validateRenameClassroom,
-} = require("../../app/middleware/classroom/rclassroomMiddleware");
+} = require("../../app/middleware/classroom/classroomMiddleware");
 
 router.get(
   "/join/:inviteToken",

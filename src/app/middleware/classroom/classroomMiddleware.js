@@ -15,8 +15,14 @@ const addQuizzesToClassroomSchema = Joi.object({
     .items(
       Joi.object({
         quizId: Joi.string().required(),
-        startTime: Joi.date().optional(),
-        endTime: Joi.date().optional(),
+        startTime: Joi.date().optional().messages({
+          "date.base": `Start time must be a valid date`,
+          "date.format": `Start time must be a valid date format`,
+        }),
+        endTime: Joi.date().optional().messages({
+          "date.base": `End time must be a valid date`,
+          "date.format": `End time must be a valid date format`,
+        }),
         duration: Joi.number().integer().min(1).optional(),
       })
     )
