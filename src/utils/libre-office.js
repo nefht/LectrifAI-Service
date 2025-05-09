@@ -2,7 +2,7 @@
 const { exec } = require("child_process");
 const fs = require("fs/promises");
 const path = require("path");
-const sharp = require("sharp"); 
+const sharp = require("sharp");
 const { v4: uuidv4 } = require("uuid");
 
 const convertPptxToPdf = async (pptxBuffer) => {

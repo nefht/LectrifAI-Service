@@ -33,15 +33,14 @@ const generateSlideContentWithGoogleAIV1 = async (
     - **Specific Requirements**: ${specificRequirements ?? "**None provided.**"}
 
     # **Slide Structure:**
-    - **Slide Title**: Provide a clear and concise title for each slide.
+    - **Slide Heading**: Provide a clear and concise title for each slide. The heading should not be too long.
     - **Slide Content**: Each slide should have **key bullet points** summarizing the most important information.
     - **Sub-bullet Points**: If necessary, include **sub-bullets** under each main bullet point.
-    - **Image Suggestions**: Suggest relevant images that could be included on each slide (**provide descriptive keywords** for image searching).
-      **Do NOT force image suggestions** into every slide—use them **only where necessary**.
-      **Avoid overly generic or unrelated keywords**.
-      **1-3 images per slide** is ideal:
-        - **1 image**: Best for focusing on the key concept of the slide.
-        - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
+    - **Image Suggestions**: Suggest relevant images only for slides where visuals would enhance understanding. 
+      Limit the number of images to **1-3 per slide** (only if necessary), with clear keywords for image searching. 
+      **Do NOT suggest images for every slide**.
+      - **1 image**: Best for focusing on the key concept of the slide.
+      - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
 
     # **Expected JSON Output**
     \`\`\`json
@@ -58,7 +57,7 @@ const generateSlideContentWithGoogleAIV1 = async (
                     ],
                     "Main point 2"
                 ],
-                "imageSuggestions": ["keyword1", "keyword2"]
+                "imageSuggestions": []
             },
             {
                 "heading": "Next Slide Title",
@@ -69,7 +68,7 @@ const generateSlideContentWithGoogleAIV1 = async (
                         "Sub-point 2"
                     ]
                 ],
-                "imageSuggestions": ["keyword3", "keyword4"]
+                "imageSuggestions": ["keyword1", "keyword2"]
             },
             {
                 "heading": "Thank You",
@@ -83,6 +82,8 @@ const generateSlideContentWithGoogleAIV1 = async (
     # **Guidelines for AI:**
     - **Ensure the slide content is structured and logically organized.**
     - **Do NOT add extra commentary or text; only return the JSON response.**
+    - **For slides with no images**, limit the total number of bullet points and sub-bullet points to **no more than 8**.
+    - **For slides with image suggestions**, limit the total number of both bullet points and sub-bullet points to **no more than 3**.
     - **Make sure the presentation aligns with the required writing tone and language.**
     - **The last "Thank you" slide should be included with no bullet points or images.**
   `;
@@ -150,10 +151,14 @@ const generateSlideContentWithGoogleAIV2 = async (
 
     # **Slide Structure**
     Each slide should contain:
-    - **Slide Title**: A clear and concise heading.
+    - **Slide Heading**: Provide a clear and concise title for each slide. The heading should not be too long.
     - **Slide Content**: Key bullet points summarizing important information.
     - **Sub-bullet Points**: Additional supporting details, if necessary.
-    - **Image Suggestions**: Recommend relevant images (using keywords) for illustration.
+    - **Image Suggestions**: Suggest relevant images only for slides where visuals would enhance understanding. 
+      Limit the number of images to **1-3 per slide** (only if necessary), with clear keywords for image searching. 
+      **Do NOT suggest images for every slide**.
+      - **1 image**: Best for focusing on the key concept of the slide.
+      - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
 
     # **If the file is an image**
     - Describe the image's key elements.
@@ -176,7 +181,7 @@ const generateSlideContentWithGoogleAIV2 = async (
                     ],
                     "Main point 2"
                 ],
-                "imageSuggestions": ["keyword1", "keyword2"]
+                "imageSuggestions": []
             },
             {
                 "heading": "Next Slide Title",
@@ -187,7 +192,7 @@ const generateSlideContentWithGoogleAIV2 = async (
                         "Sub-point 2"
                     ]
                 ],
-                "imageSuggestions": ["keyword3", "keyword4"]
+                "imageSuggestions": ["keyword1", "keyword2"]
             },
             {
                 "heading": "Thank You",
@@ -200,6 +205,8 @@ const generateSlideContentWithGoogleAIV2 = async (
 
     # **Guidelines for AI**
     - **Ensure each slide is well-structured and logically organized.**
+    - **For slides with no images**, limit the total number of bullet points and sub-bullet points to **no more than 8**.
+    - **For slides with image suggestions**, limit the total number of both bullet points and sub-bullet points to **no more than 3**.
     - **If the file contains text, analyze and extract key points.**
     - **If the file contains images, describe them and generate related slide content.**
     - **Do NOT add extra commentary; only return the JSON response.**
@@ -253,15 +260,14 @@ const generateSlideContentWithGoogleAIV3 = async (
     - **Language**: The presentation must be in **${language ?? "English"}**.
 
     # **Slide Structure:**
-    - **Slide Title**: Provide a clear and concise title for each slide.
+    - **Slide Heading**: Provide a clear and concise title for each slide. The heading should not be too long.
     - **Slide Content**: Each slide should have **key bullet points** summarizing the most important information.
     - **Sub-bullet Points**: If necessary, include **sub-bullets** under each main bullet point.
-    - **Image Suggestions**: Suggest relevant images that could be included on each slide (**provide descriptive keywords** for image searching).
-      **Do NOT force image suggestions** into every slide—use them **only where necessary**.
-      **Avoid overly generic or unrelated keywords**.
-      **1-3 images per slide** is ideal:
-        - **1 image**: Best for focusing on the key concept of the slide.
-        - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
+    - **Image Suggestions**: Suggest relevant images only for slides where visuals would enhance understanding. 
+      Limit the number of images to **1-3 per slide** (only if necessary), with clear keywords for image searching. 
+      **Do NOT suggest images for every slide**.
+      - **1 image**: Best for focusing on the key concept of the slide.
+      - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
 
     # **Expected JSON Output**
     \`\`\`json
@@ -278,7 +284,7 @@ const generateSlideContentWithGoogleAIV3 = async (
                     ],
                     "Main point 2"
                 ],
-                "imageSuggestions": ["keyword1", "keyword2"]
+                "imageSuggestions": []
             },
             {
                 "heading": "Next Slide Title",
@@ -289,7 +295,7 @@ const generateSlideContentWithGoogleAIV3 = async (
                         "Sub-point 2"
                     ]
                 ],
-                "imageSuggestions": ["keyword3", "keyword4"]
+                "imageSuggestions": ["keyword1", "keyword2"]
             },
             {
                 "heading": "Thank You",
@@ -303,6 +309,8 @@ const generateSlideContentWithGoogleAIV3 = async (
     # **Guidelines for AI:**
     - **Ensure the slide content is structured and logically organized.**
     - **Do NOT add extra commentary or text; only return the JSON response.**
+    - **For slides with no images**, limit the total number of bullet points and sub-bullet points to **no more than 8**.
+    - **For slides with image suggestions**, limit the total number of both bullet points and sub-bullet points to **no more than 3**.
     - **Make sure the presentation aligns with the required writing tone and language.**
     - **The last "Thank you" slide should be included with no bullet points or images.**
   `;
@@ -321,7 +329,6 @@ const generateLectureScriptWithGoogleAI = async (
   academicLevel,
   voiceStyle,
   language,
-  lectureSpeed,
   lectureLength,
   interactiveQuiz,
   specificRequirements
@@ -365,12 +372,12 @@ const generateLectureScriptWithGoogleAI = async (
         - **Teaching Language**: Deliver the lecture in **${
           language ?? "English"
         }**.
-        - **Lecture Speed**: Speak at a **${
-          lectureSpeed ?? "Normal"
-        }** pace, making it easy for students to follow.
-        - **Lecture Length**: Ensure the content fits a **${
-          lectureLength ?? "Standard"
-        }** length.
+        - **Lecture Length**: Ensure the script of each slide fits the following format: **${
+          lectureLength ?? "Normal"
+        }** length. 
+          If it is "Short", the content should be short, concise and focused on the key points.
+          If it is "Normal", the lecture should cover the material in an average length, providing examples and explanations. 
+          If it is "Long", the lecture should go into more detail, with deep insights, thorough analysis, and extra examples.
         - **Specific User Requirements**: ${
           specificRequirements ?? "**None provided.**"
         }
@@ -418,6 +425,7 @@ const generateLectureScriptWithGoogleAI = async (
         \`\`\`
 
         # **Guidelines for AI**
+        - **Do NOT add extra commentary; ONLY return the JSON response.**
         - **Ensure that the script remains engaging, clear, and well-structured.**
         - **If the learner level is beginner, simplify explanations and add examples.**
         - **If the level is advanced, include deeper analysis and technical terms.**
@@ -920,9 +928,10 @@ const checkShortAnswer = async (
         - If the answer is partially correct, assign points accordingly.
         - If the answer is incorrect, assign a score of 0 points.
       Ensure that the **userScore** is always less than or equal to the maximum points available for the question (i.e., it cannot exceed ${points}).
-    4. Detect the language used in the **User's Answer** and return your feedback **in the same language**.
+    4. Detect the language used in the **User's Answer** or in the **Question** and return your feedback **in the same language**.
+    5. **IMPORTANT**: **Do NOT add extra commentary or text; only return the JSON response.**
 
-    **Expected Output Format**:
+    **Expected JSON Output Format**:
     \`\`\`json
     {
       "feedback": "Your answer is nearly correct, but you missed some details.",

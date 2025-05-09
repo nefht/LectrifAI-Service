@@ -14,6 +14,18 @@ const updateLectureVideoSchema = Joi.object({
   lectureName: Joi.string(),
 });
 
+const shareLectureSchema = Joi.object({
+  isPublic: Joi.boolean().required(),
+  sharedWith: Joi.array()
+    .items(
+      Joi.object({
+        userId: Joi.string().required(),
+        permissionType: Joi.string().valid("OWNER", "VIEWER", "EDITOR").required(),
+      }).unknown()
+    )
+    .optional(),
+});
+
 const validate = (schema) => {
   return (req, res, next) => {
     const { error } = schema.validate(req.body);
@@ -27,8 +39,10 @@ const validate = (schema) => {
 
 const validateCreateLectureVideo = validate(createLectureVideoSchema);
 const validateUpdateLectureVideo = validate(updateLectureVideoSchema);
+const validateShareLectureVideo = validate(shareLectureSchema);
 
 module.exports = {
   validateCreateLectureVideo,
   validateUpdateLectureVideo,
+  validateShareLectureVideo
 };

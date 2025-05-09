@@ -76,5 +76,6 @@ router.patch(
   validateRenameClassroom,
   ClassroomController.renameClassroom
 );
+router.delete("/:id", verifyToken, ClassroomController.deleteClassroom);
 
 module.exports = router;

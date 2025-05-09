@@ -1,5 +1,6 @@
 const { ObjectId } = require("mongoose").Types;
 const ClassroomQuiz = require("../../models/Classroom/ClassroomQuiz");
+const StudentAnswer = require("../../models/Classroom/StudentAnswer");
 const Quiz = require("../../models/Quiz");
 
 class ClassroomQuizController {
@@ -73,10 +74,9 @@ class ClassroomQuizController {
     try {
       const userId = req.user.id;
       const classroomQuizId = req.params.id;
-      const classroomQuiz = await ClassroomQuiz.findById(classroomQuizId).populate(
-        "classroomId",
-        "userId"
-      );
+      const classroomQuiz = await ClassroomQuiz.findById(
+        classroomQuizId
+      ).populate("classroomId", "userId");
 
       if (!classroomQuiz) {
         return res
@@ -105,10 +105,9 @@ class ClassroomQuizController {
       const classroomQuizId = req.params.id;
       const { startTime, endTime, duration } = req.body;
 
-      const classroomQuiz = await ClassroomQuiz.findById(classroomQuizId).populate(
-        "classroomId",
-        "userId"
-      );
+      const classroomQuiz = await ClassroomQuiz.findById(
+        classroomQuizId
+      ).populate("classroomId", "userId");
 
       if (!classroomQuiz) {
         return res
@@ -126,6 +125,38 @@ class ClassroomQuizController {
         { _id: classroomQuizId },
         { startTime, endTime, duration }
       );
+
+      if (duration !== undefined && duration !== classroomQuiz.duration) {
+        console.log("update USER ANSWER");
+        const inProgressAnswers = await StudentAnswer.find({
+          classroomQuizId,
+          status: { $in: ["in-progress", "disconnected", "submitted"] },
+        });
+
+        console.log(inProgressAnswers);
+        const currentTime = new Date();
+
+        for (const answer of inProgressAnswers) {
+          const newEndedAt = new Date(
+            answer.startedAt.getTime() + duration * 1000
+          );
+          if (newEndedAt <= currentTime && answer.status !== "submitted") {
+            await StudentAnswer.updateOne(
+              { _id: answer._id },
+              {
+                endedAt: newEndedAt,
+                status: "submitted",
+                submittedAt: currentTime,
+              }
+            );
+          } else {
+            await StudentAnswer.updateOne(
+              { _id: answer._id },
+              { endedAt: newEndedAt, status: "in-progress" }
+            );
+          }
+        }
+      }
 
       res.status(200).json({ message: "Classroom quiz updated successfully" });
     } catch (error) {

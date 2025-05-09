@@ -7,6 +7,7 @@ const {
 } = require("../../utils/google-ai");
 const SlideContent = require("../models/SlideContent");
 const UploadedFile = require("../models/UploadedFile");
+const sharp = require("sharp");
 
 class GeneratedSlideController {
   // [GET] /slide-content
@@ -192,7 +193,9 @@ class GeneratedSlideController {
 
           for (let keyword of slide.imageSuggestions) {
             const imageUrl = await searchImage(keyword);
-            if (imageUrl && (await isImageValid(imageUrl.imageUrl))) {
+            const checkValid = await isImageValid(imageUrl.imageUrl);
+            console.log(checkValid);
+            if (imageUrl && checkValid.valid) {
               const proxyUrl = `${
                 process.env.SERVER_URL
               }/slide-content/image-proxy?url=${encodeURIComponent(
@@ -201,6 +204,8 @@ class GeneratedSlideController {
               imageUrls.push({
                 title: imageUrl.title,
                 imageUrl: proxyUrl,
+                width: checkValid.width,
+                height: checkValid.height,
               });
             }
           }
@@ -276,7 +281,9 @@ class GeneratedSlideController {
 
           for (let keyword of slide.imageSuggestions) {
             const imageUrl = await searchImage(keyword);
-            if (imageUrl && (await isImageValid(imageUrl.imageUrl))) {
+            const checkValid = await isImageValid(imageUrl.imageUrl);
+            console.log(checkValid);
+            if (imageUrl && checkValid.valid) {
               const proxyUrl = `${
                 process.env.SERVER_URL
               }/slide-content/image-proxy?url=${encodeURIComponent(
@@ -285,6 +292,8 @@ class GeneratedSlideController {
               imageUrls.push({
                 title: imageUrl.title,
                 imageUrl: proxyUrl,
+                width: checkValid.width,
+                height: checkValid.height,
               });
             }
           }
@@ -326,7 +335,7 @@ class GeneratedSlideController {
         topicParagraph,
         writingTone,
         language,
-        numberOfSlides,
+        numberOfSlides
       );
       console.log("Response from Google AI:", response);
 
@@ -360,7 +369,8 @@ class GeneratedSlideController {
 
           for (let keyword of slide.imageSuggestions) {
             const imageUrl = await searchImage(keyword);
-            if (imageUrl && (await isImageValid(imageUrl.imageUrl))) {
+            const checkValid = await isImageValid(imageUrl.imageUrl);
+            if (imageUrl && checkValid.valid) {
               const proxyUrl = `${
                 process.env.SERVER_URL
               }/slide-content/image-proxy?url=${encodeURIComponent(
@@ -369,6 +379,8 @@ class GeneratedSlideController {
               imageUrls.push({
                 title: imageUrl.title,
                 imageUrl: proxyUrl,
+                width: checkValid.width,
+                height: checkValid.height,
               });
             }
           }

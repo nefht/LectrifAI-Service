@@ -69,7 +69,7 @@ const studentAnswerSocket = (socket) => {
         for (const studentAnswer of studentAnswers) {
           if (studentAnswer.status === "in-progress") {
             // Nếu bài thi vẫn chưa hết thời gian, cập nhật trạng thái là 'disconnected'
-            if (!student.endedAt || studentAnswer.endedAt > currentTime) {
+            if (!studentAnswer.endedAt || studentAnswer.endedAt > currentTime) {
               studentAnswer.status = "disconnected";
             } else {
               studentAnswer.status = "graded";
@@ -91,44 +91,62 @@ const studentAnswerSocket = (socket) => {
                   };
 
                   totalScore += quiz.points;
+                } else {
+                  studentAnswer.userAnswers[i] = {
+                    ...studentAnswer.userAnswers[i],
+                    userScore: 0, // Cập nhật điểm vào quiz
+                  };
                 }
               } else if (quiz.questionType === "short answer") {
-                // Chấm điểm cho câu hỏi short answer bằng AI
-                const response = await checkShortAnswer(
-                  quiz.question,
-                  quiz.answer,
-                  quiz.explanation,
-                  quiz.points,
-                  quiz.userAnswer
-                );
-                const rawText = response.candidates[0]?.content?.parts[0]?.text;
-                if (!rawText) {
-                  throw new Error("No valid content returned from AI API.");
-                }
-
-                let feedback;
-                try {
-                  feedback = JSON.parse(
-                    rawText.replace(/```json|```/g, "").trim()
+                if (quiz.userAnswer !== "") {
+                  // Chấm điểm cho câu hỏi short answer bằng AI
+                  const response = await checkShortAnswer(
+                    quiz.question,
+                    quiz.answer,
+                    quiz.explanation,
+                    quiz.points,
+                    quiz.userAnswer
                   );
-                } catch (err) {
-                  throw new Error("Error parsing JSON content: " + err.message);
+                  const rawText =
+                    response.candidates[0]?.content?.parts[0]?.text;
+                  if (!rawText) {
+                    throw new Error("No valid content returned from AI API.");
+                  }
+
+                  console.log(rawText);
+
+                  let feedback;
+                  try {
+                    feedback = JSON.parse(
+                      rawText.replace(/```json|```/g, "").trim()
+                    );
+                  } catch (err) {
+                    throw new Error(
+                      "Error parsing JSON content: " + err.message
+                    );
+                  }
+
+                  if (!feedback) {
+                    throw new Error("No feedback data returned from AI API.");
+                  }
+
+                  const userScore = feedback.userScore;
+
+                  // Lưu điểm của học sinh vào quiz
+                  studentAnswer.userAnswers[i] = {
+                    ...studentAnswer.userAnswers[i],
+                    userScore: userScore, // Cập nhật điểm vào quiz
+                    feedback: feedback.feedback, // Cập nhật feedback vào quiz
+                  };
+
+                  totalScore += userScore;
+                } else {
+                  studentAnswer.userAnswers[i] = {
+                    ...studentAnswer.userAnswers[i],
+                    userScore: 0, // Cập nhật điểm vào quiz
+                    feedback: "Your answer is empty!", // Cập nhật feedback vào quiz
+                  };
                 }
-
-                if (!feedback) {
-                  throw new Error("No feedback data returned from AI API.");
-                }
-
-                const userScore = feedback.userScore;
-
-                // Lưu điểm của học sinh vào quiz
-                studentAnswer.userAnswers[i] = {
-                  ...studentAnswer.userAnswers[i],
-                  userScore: userScore, // Cập nhật điểm vào quiz
-                  feedback: feedback.feedback, // Cập nhật feedback vào quiz
-                };
-
-                totalScore += userScore;
               }
             }
 

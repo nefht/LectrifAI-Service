@@ -429,7 +429,7 @@ class QuizController {
 
     try {
       const quiz = await Quiz.findOneAndUpdate(
-        { _id: id, userId },
+        { _id: id },
         { quizData },
         { new: true }
       );
@@ -452,7 +452,7 @@ class QuizController {
 
     try {
       const quiz = await Quiz.findOneAndUpdate(
-        { _id: id, userId },
+        { _id: id },
         { quizName, academicLevel },
         { new: true }
       );

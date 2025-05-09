@@ -92,7 +92,6 @@ class LectureScriptController {
         academicLevel,
         voiceStyle,
         language,
-        lectureSpeed,
         lectureLength,
         interactiveQuiz,
         specificRequirements

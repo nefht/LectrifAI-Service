@@ -69,8 +69,8 @@ const shareQuizSchema = Joi.object({
     .items(
       Joi.object({
         userId: Joi.string().required(),
-        permissionType: Joi.string().valid("VIEWER", "EDITOR").required(),
-      })
+        permissionType: Joi.string().valid("OWNER", "VIEWER", "EDITOR").required(),
+      }).unknown()
     )
     .optional(),
 });

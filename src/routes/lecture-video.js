@@ -5,11 +5,13 @@ const { verifyToken } = require("../app/middleware/authMiddleware");
 const {
   validateCreateLectureVideo,
   validateUpdateLectureVideo,
+  validateShareLectureVideo,
 } = require("../app/middleware/lectureVideoMiddleware");
 
 router.post(
   "/share/:id",
   verifyToken,
+  validateShareLectureVideo,
   LectureVideoController.shareLectureVideo
 );
 router.get(

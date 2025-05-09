@@ -396,6 +396,16 @@ class ClassroomController {
         return res.status(404).json({ message: "Classroom not found" });
       }
 
+      // Tìm tất cả ClassroomQuiz liên quan đến Classroom
+      const classroomQuizzes = await ClassroomQuiz.find({ classroomId });
+
+      // Xóa tất cả StudentAnswer liên quan đến ClassroomQuiz
+      await StudentAnswer.deleteMany({
+        classroomQuizId: {
+          $in: classroomQuizzes.map((quiz) => quiz._id),
+        },
+      });
+
       await ClassroomQuiz.deleteMany({
         classroomId,
       });

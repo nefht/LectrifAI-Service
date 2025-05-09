@@ -183,42 +183,57 @@ class StudentAnswerController {
             };
 
             totalScore += quiz.points;
+          } else {
+            studentAnswer.userAnswers[i] = {
+              ...studentAnswer.userAnswers[i],
+              userScore: 0, // Cập nhật điểm vào quiz
+            };
           }
         } else if (quiz.questionType === "short answer") {
-          // Chấm điểm cho câu hỏi short answer bằng AI
-          const response = await checkShortAnswer(
-            quiz.question,
-            quiz.answer,
-            quiz.explanation,
-            quiz.points,
-            quiz.userAnswer
-          );
-          const rawText = response.candidates[0]?.content?.parts[0]?.text;
-          if (!rawText) {
-            throw new Error("No valid content returned from AI API.");
+          if (quiz.userAnswer !== "") {
+            // Chấm điểm cho câu hỏi short answer bằng AI
+            const response = await checkShortAnswer(
+              quiz.question,
+              quiz.answer,
+              quiz.explanation,
+              quiz.points,
+              quiz.userAnswer
+            );
+            const rawText = response.candidates[0]?.content?.parts[0]?.text;
+            if (!rawText) {
+              throw new Error("No valid content returned from AI API.");
+            }
+
+            console.log(rawText);
+
+            let feedback;
+            try {
+              feedback = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+            } catch (err) {
+              throw new Error("Error parsing JSON content: " + err.message);
+            }
+
+            if (!feedback) {
+              throw new Error("No feedback data returned from AI API.");
+            }
+
+            const userScore = feedback.userScore;
+
+            // Lưu điểm của học sinh vào quiz
+            studentAnswer.userAnswers[i] = {
+              ...studentAnswer.userAnswers[i],
+              userScore: userScore, // Cập nhật điểm vào quiz
+              feedback: feedback.feedback, // Cập nhật feedback vào quiz
+            };
+
+            totalScore += userScore;
+          } else {
+            studentAnswer.userAnswers[i] = {
+              ...studentAnswer.userAnswers[i],
+              userScore: 0, // Cập nhật điểm vào quiz
+              feedback: "Your answer is empty!", // Cập nhật feedback vào quiz
+            };
           }
-
-          let feedback;
-          try {
-            feedback = JSON.parse(rawText.replace(/```json|```/g, "").trim());
-          } catch (err) {
-            throw new Error("Error parsing JSON content: " + err.message);
-          }
-
-          if (!feedback) {
-            throw new Error("No feedback data returned from AI API.");
-          }
-
-          const userScore = feedback.userScore;
-
-          // Lưu điểm của học sinh vào quiz
-          studentAnswer.userAnswers[i] = {
-            ...studentAnswer.userAnswers[i],
-            userScore: userScore, // Cập nhật điểm vào quiz
-            feedback: feedback.feedback, // Cập nhật feedback vào quiz
-          };
-
-          totalScore += userScore;
         }
       }
 
@@ -245,14 +260,12 @@ class StudentAnswerController {
 
       const studentAnswer = await StudentAnswer.findById(id).populate(
         "classroomQuizId",
-        "quizId classroomId"
+        "quizId classroomId endTime startTime"
       );
 
       if (!studentAnswer) {
         return res.status(404).json({ message: "Student answer not found" });
       }
-
-      console.log(studentAnswer.classroomQuizId.classroomId);
 
       const classroom = await Classroom.findOne({
         _id: studentAnswer?.classroomQuizId?.classroomId,
@@ -260,6 +273,18 @@ class StudentAnswerController {
 
       if (!classroom) {
         return res.status(404).json({ message: "Classroom not found" });
+      }
+
+      if (classroom.userId.toString() !== userId) {
+        const currentTime = Date.now();
+        if (
+          (studentAnswer?.classroomQuizId?.endTime &&
+            currentTime > studentAnswer?.classroomQuizId?.endTime) ||
+          (studentAnswer?.classroomQuizId?.startTime &&
+            currentTime < studentAnswer?.classroomQuizId?.startTime)
+        ) {
+          res.status(403).json({ message: "Access denied" });
+        }
       }
 
       if (
@@ -304,9 +329,6 @@ class StudentAnswerController {
     try {
       const userId = req.user.id;
       const classroomQuizId = req.params.classroomQuizId;
-
-      console.log("userId", userId);
-      console.log("classroomQuizId", classroomQuizId);
 
       const studentAnswer = await StudentAnswer.findOne({
         classroomQuizId,
