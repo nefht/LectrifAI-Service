@@ -5,7 +5,7 @@ const slideRequestSchemaV1 = Joi.object({
   topicText: Joi.string().max(255).required(),
   writingTone: Joi.string().required(),
   language: Joi.string().max(50).required(),
-  numberOfSlides: Joi.number().integer().min(1).max(50).required(),
+  numberOfSlides: Joi.number().integer().min(1).max(40).required(),
   templateCode: Joi.string().required(),
   specificRequirements: Joi.string().allow("").optional(),
 });

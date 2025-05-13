@@ -91,7 +91,7 @@ class ChatMessageController {
         `;
       }
 
-      const model = genAI.getGenerativeModel({ model: "gemini-exp-1206" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const chat = model.startChat();
 
       const fullMessage = `${lectureContext}\n\n${message}`;
@@ -120,6 +120,31 @@ class ChatMessageController {
       });
 
       await chatHistory.save();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [DELETE] /delete/:lectureId
+  async deleteChatMessage(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const { lectureId } = req.params;
+
+      if (!lectureId) {
+        return res.status(400).json({ error: "Missing lectureId parameter." });
+      }
+
+      const chatHistory = await ChatMessage.findOneAndDelete({
+        userId,
+        lectureId,
+      });
+
+      if (!chatHistory) {
+        return res.status(404).json({ error: "Chat history not found." });
+      }
+
+      res.status(200).json({ message: "Chat history deleted successfully." });
     } catch (error) {
       next(error);
     }

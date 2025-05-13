@@ -13,5 +13,6 @@ router.post(
   validateCreateChatMessage,
   ChatMessageController.createChatMessage
 );
+router.delete("/:lectureId", verifyToken, ChatMessageController.deleteChatMessage);
 
 module.exports = router;

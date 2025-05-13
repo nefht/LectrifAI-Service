@@ -3,7 +3,6 @@ const Joi = require("joi");
 const updateUserSchema = Joi.object({
   fullName: Joi.string().min(2).max(100).optional(),
   email: Joi.string().email().optional(),
-  birthday: Joi.date().optional(),
   // Không cho phép cập nhật avatar tại đây
   avatarUrl: Joi.forbidden(),
 });

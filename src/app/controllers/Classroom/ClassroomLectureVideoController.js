@@ -57,7 +57,7 @@ class ClassroomLectureVideoController {
           .json({ message: "Classroom lecture video not found" });
       }
 
-      if (userId !== classroomQuiz.classroomId.userId.toString()) {
+      if (userId !== classroomLectureVideo.classroomId.userId.toString()) {
         return res.status(403).json({
           message: "You are not allowed to access this lecture video",
         });

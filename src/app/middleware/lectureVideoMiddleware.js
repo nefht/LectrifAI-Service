@@ -19,8 +19,8 @@ const shareLectureSchema = Joi.object({
   sharedWith: Joi.array()
     .items(
       Joi.object({
-        userId: Joi.string().required(),
-        permissionType: Joi.string().valid("OWNER", "VIEWER", "EDITOR").required(),
+        userId: Joi.string(),
+        permissionType: Joi.string().valid("OWNER", "VIEWER", "EDITOR"),
       }).unknown()
     )
     .optional(),

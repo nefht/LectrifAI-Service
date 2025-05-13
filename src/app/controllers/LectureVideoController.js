@@ -177,15 +177,17 @@ class LectureVideoController {
         return res.status(404).json({ error: "Lecture video not found." });
 
       let lectureVideoData = lectureVideo;
+
+      const permission = await LectureVideoPermission.findOne({
+        userId,
+        lectureVideoId: videoId,
+      });
+
+      console.log("PERMISSION", permission);
+
       // Kiểm tra quyền truy cập
       if (!lectureVideo.isPublic) {
         const owner = lectureVideo.userId.toString() === userId;
-        const permission = await LectureVideoPermission.findOne({
-          userId,
-          lectureVideoId: videoId,
-        });
-
-        console.log(permission);
 
         // Lấy danh sách các lớp học được cấp quyền vào bài giảng
         const lectureClassrooms = await ClassroomLectureVideo.find({
@@ -204,13 +206,13 @@ class LectureVideoController {
         if (!owner && !permission && !userInClassroom) {
           return res.status(403).json({ error: "Access denied." });
         }
+      }
 
-        if (permission) {
-          lectureVideoData = {
-            ...lectureVideo._doc,
-            permissionType: permission.permissionType,
-          };
-        }
+      if (permission && permission.permissionType) {
+        lectureVideoData = {
+          ...lectureVideo._doc,
+          permissionType: permission.permissionType,
+        };
       }
 
       res.status(200).json(lectureVideoData);
@@ -388,6 +390,9 @@ class LectureVideoController {
       }
 
       await LectureVideo.deleteOne({ _id: req.params.id });
+      await ClassroomLectureVideo.deleteMany({
+        lectureVideoId: videoId,
+      });
       res.status(200).json({ message: "Lecture video deleted successfully." });
     } catch (error) {
       next(error);
@@ -438,7 +443,7 @@ class LectureVideoController {
         });
       }
 
-      if (!isPublic && sharedWith && sharedWith.length > 0) {
+      if (sharedWith && sharedWith.length > 0) {
         // Xóa tất cả quyền chia sẻ cũ cho video này
         await LectureVideoPermission.deleteMany({
           lectureVideoId: videoId,

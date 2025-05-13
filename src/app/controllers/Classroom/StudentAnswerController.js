@@ -1,3 +1,4 @@
+const { default: mongoose } = require("mongoose");
 const { checkShortAnswer } = require("../../../utils/google-ai");
 const Classroom = require("../../models/Classroom/Classroom");
 const ClassroomQuiz = require("../../models/Classroom/ClassroomQuiz");
@@ -296,7 +297,9 @@ class StudentAnswerController {
         let responseData;
         if (
           studentAnswer.status === "submitted" ||
-          studentAnswer.status === "graded"
+          studentAnswer.status === "graded" ||
+          (studentAnswer.studentId.toString() !== userId &&
+            classroom.userId.toString() === userId)
         ) {
           responseData = { ...studentAnswer._doc, quizName: quiz.quizName };
         } else {
@@ -356,6 +359,10 @@ class StudentAnswerController {
     try {
       const userId = req.user.id;
       const classroomId = req.params.classroomId;
+      // Pagination parameters
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
 
       const classroom = await Classroom.findById(classroomId);
       if (!classroom) {
@@ -374,47 +381,66 @@ class StudentAnswerController {
       const classroomQuizzes = await ClassroomQuiz.find({ classroomId });
       const classroomQuizIds = classroomQuizzes.map((quiz) => quiz._id);
 
-      // Lấy tất cả student answers cho quizzes
-      const studentAnswers = await StudentAnswer.find({
-        classroomQuizId: { $in: classroomQuizIds },
-        status: "graded", // Chỉ lấy những bài làm đã được chấm điểm
-      });
+      // Lấy tất cả students id
+      const allStudentIds = classroom.students;
 
-      // Lấy tất cả student IDs trong classroom
-      const studentIds = classroom.students;
+      // Lấy điểm số cho tất cả học sinh trong lớp
+      const allStudentScores = await StudentAnswer.aggregate([
+        {
+          $match: {
+            classroomQuizId: { $in: classroomQuizIds },
+            studentId: { $in: allStudentIds },
+            status: { $in: ["disconnected", "submitted", "graded"] },
+          },
+        },
+        {
+          $group: {
+            _id: "$studentId",
+            totalScore: { $sum: { $ifNull: ["$score", 0] } },
+            quizCount: { $sum: 1 },
+          },
+        },
+      ]);
 
-      // Tạo một đối tượng để lưu trữ điểm số của từng học sinh
-      const studentScores = {};
-      studentIds.forEach((studentId) => {
-        studentScores[studentId.toString()] = {
-          studentId: studentId,
-          totalScore: 0,
-          quizCount: 0,
+      // Tạo map điểm số cho tất cả học sinh
+      const scoreMap = {};
+      allStudentScores.forEach((score) => {
+        scoreMap[score._id.toString()] = {
+          totalScore: score.totalScore,
+          quizCount: score.quizCount,
         };
       });
 
-      studentAnswers.forEach((answer) => {
-        const studentId = answer.studentId.toString();
-        if (studentScores[studentId]) {
-          studentScores[studentId].totalScore += answer.score || 0;
-          studentScores[studentId].quizCount++;
-        }
+      // Tạo mảng tất cả học sinh với điểm số
+      const allStudents = allStudentIds.map((studentId) => {
+        const id = studentId.toString();
+        const scoreInfo = scoreMap[id] || { totalScore: 0, quizCount: 0 };
+        return {
+          studentId: studentId,
+          totalScore: scoreInfo.totalScore,
+          quizCount: scoreInfo.quizCount,
+        };
       });
 
-      // Sắp xếp danh sách học sinh theo điểm số giảm dần
-      const rankingList = Object.values(studentScores).sort(
-        (a, b) => b.totalScore - a.totalScore
-      );
+      // Sắp xếp tất cả học sinh theo điểm số giảm dần
+      allStudents.sort((a, b) => b.totalScore - a.totalScore);
 
-      // Lấy thông tin student
+      // Phân trang sau khi đã sắp xếp
+      const paginatedStudents = allStudents.slice(skip, skip + limit);
+
+      // Lấy thông tin chi tiết cho học sinh đã phân trang
+      const paginatedStudentIds = paginatedStudents.map((s) => s.studentId);
+
+      // Lấy thông tin chi tiết học sinh
       const studentDetails = await User.find(
-        { _id: { $in: studentIds } },
+        { _id: { $in: paginatedStudentIds } },
         { _id: 1, fullName: 1, account: 1, email: 1, avatarUrl: 1 }
       );
 
-      const studentMap = {};
+      // Tạo map thông tin học sinh
+      const studentInfoMap = {};
       studentDetails.forEach((student) => {
-        studentMap[student._id.toString()] = {
+        studentInfoMap[student._id.toString()] = {
           fullName: student.fullName,
           account: student.account,
           email: student.email,
@@ -422,22 +448,38 @@ class StudentAnswerController {
         };
       });
 
-      // Thêm rank và student info vào danh sách xếp hạng
-      const results = rankingList.map((item, index) => {
-        const student = studentMap[item.studentId.toString()];
+      // Tạo kết quả cuối cùng với ranking
+      const results = paginatedStudents.map((student, index) => {
+        const studentId = student.studentId.toString();
+        const studentInfo = studentInfoMap[studentId] || {};
+
         return {
-          rank: index + 1,
-          studentId: item.studentId,
-          fullName: student.fullName,
-          account: student.account,
-          email: student.email,
-          avatarUrl: student.avatarUrl,
-          totalScore: item.totalScore,
-          quizCount: item.quizCount,
+          rank: skip + index + 1,
+          studentId: student.studentId,
+          fullName: studentInfo.fullName || "Unknown",
+          account: studentInfo.account || "Unknown",
+          email: studentInfo.email || "Unknown",
+          avatarUrl: studentInfo.avatarUrl || null,
+          totalScore: student.totalScore,
+          quizCount: student.quizCount,
         };
       });
 
-      res.status(200).json(results);
+      // Lấy tổng số học sinh để tính pagination
+      const totalItems = allStudentIds.length;
+      const totalPages = Math.ceil(totalItems / limit);
+
+      res.status(200).json({
+        results,
+        pagination: {
+          totalItems,
+          totalPages,
+          currentPage: page,
+          pageSize: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -448,6 +490,11 @@ class StudentAnswerController {
     try {
       const userId = req.user.id;
       const { classroomId, studentId } = req.params;
+
+      // Pagination parameters
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
 
       const classroom = await Classroom.findById(classroomId);
       if (!classroom) {
@@ -486,14 +533,7 @@ class StudentAnswerController {
 
       const classroomQuizIds = classroomQuizzes.map((quiz) => quiz._id);
 
-      // Lấy tất cả student answers cho quizzes trong classroom
-      const studentAnswers = await StudentAnswer.find({
-        classroomQuizId: { $in: classroomQuizIds },
-        studentId: studentId,
-        status: { $in: ["submitted", "graded"] },
-      }).sort({ submittedAt: -1 });
-
-      // Map từ classroomQuiz sang thông tin quiz
+      // Tạo map cho quiz details để dùng sau
       const quizDetailsMap = {};
       classroomQuizzes.forEach((quiz) => {
         quizDetailsMap[quiz._id.toString()] = {
@@ -503,8 +543,38 @@ class StudentAnswerController {
         };
       });
 
+      // Sử dụng aggregate để lấy dữ liệu student answers có phân trang
+      const studentAnswersAggregate = await StudentAnswer.aggregate([
+        {
+          // Lọc theo điều kiện
+          $match: {
+            classroomQuizId: { $in: classroomQuizIds },
+            studentId: new mongoose.Types.ObjectId(studentId),
+            status: { $in: ["disconnected", "submitted", "graded"] },
+          },
+        },
+        {
+          // Sắp xếp theo thời gian nộp giảm dần
+          $sort: { submittedAt: -1 },
+        },
+        {
+          // Phân trang và đếm tổng số kết quả
+          $facet: {
+            metadata: [{ $count: "totalItems" }],
+            data: [{ $skip: skip }, { $limit: limit }],
+          },
+        },
+      ]);
+
+      const metadata = studentAnswersAggregate[0].metadata[0] || {
+        totalItems: 0,
+      };
+      const studentAnswerData = studentAnswersAggregate[0].data;
+      const totalItems = metadata.totalItems;
+      const totalPages = Math.ceil(totalItems / limit);
+
       // Lấy thông tin quiz cho từng student answer
-      const quizResults = studentAnswers.map((answer) => {
+      const quizResults = studentAnswerData.map((answer) => {
         const quizDetails = quizDetailsMap[answer.classroomQuizId.toString()];
         return {
           studentAnswerId: answer._id,
@@ -528,6 +598,14 @@ class StudentAnswerController {
           avatarUrl: student.avatarUrl,
         },
         quizzes: quizResults,
+        pagination: {
+          totalItems,
+          totalPages,
+          currentPage: page,
+          pageSize: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
       });
     } catch (error) {
       next(error);

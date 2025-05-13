@@ -4,6 +4,7 @@ const Classroom = require("../../models/Classroom/Classroom");
 const ClassroomLectureVideo = require("../../models/Classroom/ClassroomLectureVideo");
 const ClassroomQuiz = require("../../models/Classroom/ClassroomQuiz");
 const User = require("../../models/User");
+const StudentAnswer = require("../../models/Classroom/StudentAnswer");
 
 class ClassroomController {
   // [GET] /classroom - Get user's own classrooms
@@ -69,8 +70,13 @@ class ClassroomController {
         ];
       }
 
+      // Tạo sort object
+      const sort = {};
+      sort[sortBy] = order === "asc" ? 1 : -1;
+
       const classrooms = await Classroom.find(filter)
         .populate("userId", "fullName account email avatarUrl")
+        .sort(sort)
         .skip(skip)
         .limit(limit);
 
@@ -387,7 +393,7 @@ class ClassroomController {
       const userId = req.user.id;
       const classroomId = req.params.id;
 
-      const classroom = await Classroom.findOneAndDelete({
+      const classroom = await Classroom.findOne({
         _id: classroomId,
         userId,
       });
@@ -413,6 +419,8 @@ class ClassroomController {
       await ClassroomLectureVideo.deleteMany({
         classroomId,
       });
+
+      await Classroom.deleteOne({ _id: classroomId });
 
       res.status(200).json(classroom);
     } catch (error) {

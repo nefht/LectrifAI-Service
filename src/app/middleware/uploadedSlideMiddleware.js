@@ -1,9 +1,9 @@
 const Joi = require("joi");
-const { EUploadedSlide } = require("../constants/uploaded-slide");
 const path = require("path");
 const fs = require("fs/promises");
 const { v4: uuidv4 } = require("uuid");
 const { convertToPdf } = require("../../utils/libre-office");
+const { PDFDocument } = require("pdf-lib");
 
 const convertFileToPdfMiddleware = async (req, res, next) => {
   try {
@@ -20,6 +20,14 @@ const convertFileToPdfMiddleware = async (req, res, next) => {
     if (mimetype !== "application/pdf") {
       console.log(`Converting ${originalname} to PDF...`);
       pdfBuffer = await convertToPdf(buffer, fileExtension);
+    }
+
+    // Check PDF's number of pages
+    const pageCount = await getPdfPageCount(pdfBuffer);
+    if (pageCount > 40) {
+      return res.status(400).json({
+        error: "The PDF file exceeds the maximum page limit of 40 pages.",
+      });
     }
 
     // Tạo thư mục tạm
@@ -43,6 +51,20 @@ const convertFileToPdfMiddleware = async (req, res, next) => {
   } catch (error) {
     console.error("Error converting file to PDF:", error);
     res.status(500).json({ error: "Failed to process file." });
+  }
+};
+
+/**
+ * Count PDF's number of pages (Used before generating lecture script)
+ * @param {Buffer} pdfBuffer - PDF file buffer
+ * @returns {Promise<number>} - Number of pages in the PDF
+ */
+const getPdfPageCount = async (pdfBuffer) => {
+  try {
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    return pdfDoc.getPages().length;
+  } catch (error) {
+    throw new Error("Failed to read PDF: " + error.message);
   }
 };
 

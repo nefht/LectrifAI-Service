@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const Profile = require("../models/Profile");
+const { deleteFileFromS3 } = require("../../utils/aws-s3");
 
 class UserController {
   // [GET] /user
@@ -91,12 +92,19 @@ class UserController {
   async updateUser(req, res, next) {
     const userId = req.user.id;
     try {
-      const { avatarUrl, ...userData } = req.body;
+      const { avatarUrl, email, ...userData } = req.body;
+      // Kiểm tra nếu có email mới và email đó đã tồn tại chưa
+      if (email) {
+        const existingUser = await User.findOne({ email });
+        if (existingUser && existingUser._id.toString() !== userId) {
+          return res.status(400).json({ error: "Email already exists." });
+        }
+      }
 
       const updatedUser = await User.findByIdAndUpdate(userId, userData, {
         new: true,
       }).populate("profile");
-      
+
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found." });
       }
@@ -224,6 +232,29 @@ class UserController {
       );
 
       res.json(updatedUser);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // [POST] /avatar
+  async deleteAvatar(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found." });
+      }
+      if (user.avatarUrl === null) {
+        return res.status(400).json({ error: "No avatar to delete." });
+      }
+      // Xóa avatar từ S3
+      await deleteFileFromS3(user.avatarUrl);
+      // Cập nhật avatarUrl trong cơ sở dữ liệu
+      user.avatarUrl = null;
+      await user.save();
+
+      res.json(user);
     } catch (error) {
       next(error);
     }

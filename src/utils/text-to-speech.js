@@ -14,12 +14,17 @@ const getVoiceName = async (languageCode, ssmlGender) => {
   try {
     const response = await client.listVoices();
     const voices = response[0].voices;
-    const filteredVoices = voices.filter(
+    let filteredVoices = voices.filter(
       (voice) =>
         voice.languageCodes.includes(languageCode) &&
         voice.ssmlGender === ssmlGender &&
         (voice.name.includes("Wavenet") || voice.name.includes("Standard"))
     );
+    if (filteredVoices.length === 0) {
+      throw new Error(
+        "Cannot find voice for the specified language. Please check the settings."
+      );
+    }
 
     // Ưu tiên giọng Wavenet
     const sortedVoices = filteredVoices.sort((a, b) => {

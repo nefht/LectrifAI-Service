@@ -49,14 +49,16 @@ const updateQuizSchema = Joi.object({
     quizzes: Joi.array()
       .items(
         Joi.object({
-          question: Joi.string().required(),
-          answer: Joi.string().required(),
-          options: Joi.array().items(Joi.string()).optional(),
+          question: Joi.string().allow("").allow(null).required(),
+          answer: Joi.string().allow("").allow(null).required(),
+          options: Joi.array()
+            .items(Joi.string().allow("").allow(null))
+            .optional(),
           questionType: Joi.string()
             .valid("multiple choice", "short answer")
             .required(),
           points: Joi.number().required(),
-          explanation: Joi.string().allow("").optional(),
+          explanation: Joi.string().allow("").allow(null).optional(),
         })
       )
       .required(),
@@ -68,8 +70,8 @@ const shareQuizSchema = Joi.object({
   sharedWith: Joi.array()
     .items(
       Joi.object({
-        userId: Joi.string().required(),
-        permissionType: Joi.string().valid("OWNER", "VIEWER", "EDITOR").required(),
+        userId: Joi.string(),
+        permissionType: Joi.string().valid("OWNER", "VIEWER", "EDITOR"),
       }).unknown()
     )
     .optional(),

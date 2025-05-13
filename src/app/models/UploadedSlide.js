@@ -8,7 +8,6 @@ const UploadedSlideSchema = new Schema(
     fileName: {
       type: String,
       required: true,
-      maxLength: 255,
     },
     lectureId: {
       type: mongoose.Schema.Types.ObjectId,

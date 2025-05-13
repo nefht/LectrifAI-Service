@@ -10,6 +10,7 @@ const Quiz = require("../models/Quiz");
 const QuizPermission = require("../models/permissions/QuizPermission");
 const ClassroomQuiz = require("../models/Classroom/ClassroomQuiz");
 const MultipleQuizRoom = require("../models/MultipleQuizRoom");
+const { deleteFileFromS3 } = require("../../utils/aws-s3");
 
 const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
 
@@ -163,12 +164,13 @@ class QuizController {
 
       // Kiểm tra quyền truy cập
       if (!quiz.isPublic) {
-        const owner = quiz.userId.toString() === userId;
+        const owner = quiz.userId._id.toString() === userId.toString();
+        console.log("owner", owner);
         const permissions = await QuizPermission.findOne({
           userId,
           quizId: id,
         });
-
+        console.log("permission", permissions);
         // Lấy danh sách lớp học được cấp quyền vào quiz
         const quizClassrooms = await ClassroomQuiz.find({
           quizId: id,
@@ -182,6 +184,7 @@ class QuizController {
             classroom.userId.toString() === userId
           );
         });
+        console.log("userInClassroom", userInClassroom);
 
         if (!owner && !permissions && !userInClassroom) {
           return res.status(403).json({ error: "Access denied." });
@@ -361,7 +364,7 @@ class QuizController {
       const quiz = new Quiz({
         userId,
         fileUrl,
-        quizName: file?.originalname ?? "New Quiz",
+        quizName: quizData.quizName ?? "New Quiz",
         academicLevel,
         language,
         questionType,
@@ -473,12 +476,20 @@ class QuizController {
     const userId = req.user.id;
 
     try {
-      const quiz = await Quiz.findOneAndDelete({ _id: id, userId });
+      const quiz = await Quiz.findOne({ _id: id, userId });
 
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found." });
       }
 
+      await ClassroomQuiz.deleteMany({ quizId: id });
+
+      if (quiz.fileUrl) {
+        // Xóa file trên S3
+        await deleteFileFromS3(quiz.fileUrl);
+      }
+
+      await Quiz.deleteOne({ _id: id, userId })
       res.status(200).json({ message: "Quiz deleted successfully." });
     } catch (error) {
       next(error);
@@ -514,7 +525,7 @@ class QuizController {
         });
       }
 
-      if (!isPublic && sharedWith && sharedWith.length > 0) {
+      if (sharedWith && sharedWith.length > 0) {
         // Xóa tất cả quyền chia sẻ cũ cho quiz
         await QuizPermission.deleteMany({ quizId });
 
@@ -545,6 +556,7 @@ class QuizController {
             permissionType: permission.permissionType,
           };
         }),
+        isPublic: quiz.isPublic,
       });
     } catch (error) {
       next(error);
@@ -557,7 +569,7 @@ class QuizController {
       const userId = req.user.id;
       const quizId = req.params.id;
 
-      const quiz = await Quiz.findOne({ _id: quizId, userId });
+      const quiz = await Quiz.findById(quizId);
       if (!quiz) {
         return res.status(404).json({ error: "Quiz not found." });
       }

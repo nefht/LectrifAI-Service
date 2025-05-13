@@ -16,6 +16,7 @@ router.post(
   uploadToS3("avatar"),
   userController.uploadAvater
 );
+router.post("/remove-avatar", verifyToken, userController.deleteAvatar);
 router.put(
   "/profile",
   verifyToken,

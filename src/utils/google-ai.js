@@ -25,7 +25,10 @@ const generateSlideContentWithGoogleAIV1 = async (
     Your task is to create **structured content** for a PowerPoint presentation on the topic: **"${topic}"**.
 
     # **Presentation Specifications:**
-    - **Number of Slides**: ${numberOfSlides ?? "**10**"} slides.
+    - **Number of Slides**: **You must generate EXACTLY ${
+      numberOfSlides ?? "**10**"
+    } slides**.
+      Do not generate more or less than the requested number of slides.
     - **Writing Tone**: The content should be written in a **${
       writingTone ?? "formal"
     }** tone.
@@ -37,12 +40,13 @@ const generateSlideContentWithGoogleAIV1 = async (
     - **Slide Content**: Each slide should have **key bullet points** summarizing the most important information.
     - **Sub-bullet Points**: If necessary, include **sub-bullets** under each main bullet point.
     - **Image Suggestions**: Suggest relevant images only for slides where visuals would enhance understanding. 
-      Limit the number of images to **1-3 per slide** (only if necessary), with clear keywords for image searching. 
+      Limit the number of images to ONLY **1-3 per slide** (only if necessary), with clear keywords for image searching. 
       **Do NOT suggest images for every slide**.
       - **1 image**: Best for focusing on the key concept of the slide.
       - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
 
-    # **Expected JSON Output**
+     **YOU MUST RETURN the output ONLY in the following JSON format. Do not include any preamble, explanations, or conversational text before or after the JSON.**
+    # **REQUIRED JSON Output Structure:**
     \`\`\`json
     {
         "title": "Presentation Title",
@@ -140,9 +144,10 @@ const generateSlideContentWithGoogleAIV2 = async (
     - If the file contains **images**, analyze the visuals and suggest appropriate slide titles, content, and relevant image descriptions.
 
     # **Presentation Specifications**
-    - **Number of Slides**: Generate approximately ${
-      numberOfSlides ?? "10"
-    } slides.
+    - **Number of Slides**: **You must generate EXACTLY ${
+      numberOfSlides ?? "**10**"
+    } slides**.
+      Do not generate more or less than the requested number of slides.
     - **Writing Tone**: The content should be written in a **${
       writingTone ?? "formal"
     }** tone.
@@ -155,7 +160,7 @@ const generateSlideContentWithGoogleAIV2 = async (
     - **Slide Content**: Key bullet points summarizing important information.
     - **Sub-bullet Points**: Additional supporting details, if necessary.
     - **Image Suggestions**: Suggest relevant images only for slides where visuals would enhance understanding. 
-      Limit the number of images to **1-3 per slide** (only if necessary), with clear keywords for image searching. 
+      Limit the number of images to ONLY **1-3 per slide** (only if necessary), with clear keywords for image searching. 
       **Do NOT suggest images for every slide**.
       - **1 image**: Best for focusing on the key concept of the slide.
       - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
@@ -165,8 +170,8 @@ const generateSlideContentWithGoogleAIV2 = async (
     - Extract any text found in the image.
     - Generate slides based on visual and contextual information.
 
-    # **Output Format**
-    Please return a structured JSON response in the following format:
+    **YOU MUST RETURN the output ONLY in the following JSON format. Do not include any preamble, explanations, or conversational text before or after the JSON.**
+    # **REQUIRED JSON Output Structure:**
     \`\`\`json
     {
         "title": "Generated Presentation Title",
@@ -253,7 +258,10 @@ const generateSlideContentWithGoogleAIV3 = async (
     Do not just extract surface-level keywords—distill the paragraph into meaningful slide topics and structured content.
 
     # **Presentation Specifications:**
-    - **Number of Slides**: ${numberOfSlides ?? "**10**"} slides.
+    - **Number of Slides**: **You must generate EXACTLY ${
+      numberOfSlides ?? "**10**"
+    } slides**.
+      Do not generate more or less than the requested number of slides.
     - **Writing Tone**: The content should be written in a **${
       writingTone ?? "formal"
     }** tone.
@@ -264,12 +272,13 @@ const generateSlideContentWithGoogleAIV3 = async (
     - **Slide Content**: Each slide should have **key bullet points** summarizing the most important information.
     - **Sub-bullet Points**: If necessary, include **sub-bullets** under each main bullet point.
     - **Image Suggestions**: Suggest relevant images only for slides where visuals would enhance understanding. 
-      Limit the number of images to **1-3 per slide** (only if necessary), with clear keywords for image searching. 
+      Limit the number of images to ONLY **1-3 per slide** (only if necessary), with clear keywords for image searching. 
       **Do NOT suggest images for every slide**.
       - **1 image**: Best for focusing on the key concept of the slide.
       - **2-3 images**: Use when the slide has more complex content that benefits from multiple visuals (e.g., diagrams, examples, or processes).
 
-    # **Expected JSON Output**
+    **YOU MUST RETURN the output ONLY in the following JSON format. Do not include any preamble, explanations, or conversational text before or after the JSON.**
+    # **REQUIRED JSON Output Structure:**
     \`\`\`json
     {
         "title": "Presentation Title",
@@ -359,7 +368,8 @@ const generateLectureScriptWithGoogleAI = async (
 
   const basePrompt = `
         You are an **expert lecturer** who excels at adapting to different learning levels and teaching styles.  
-        Your task is to generate a **lecture script** from a **PowerPoint (PPTX) file**.
+        Your task is to generate a **lecture script** for **EVERY PAGE** of the attached **PDF file**.
+        Consider each page of the attached PDF file as a 'slide' in a PowerPoint presentation for the purpose of generating the lecture script.
 
         # **Lecture Specifications**
         - **Lecture Name**: Generate a short, concise, and relevant name that summarizes the topic (e.g., "Introduction to Quantum Computing", "Basics of Machine Learning").
@@ -375,26 +385,27 @@ const generateLectureScriptWithGoogleAI = async (
         - **Lecture Length**: Ensure the script of each slide fits the following format: **${
           lectureLength ?? "Normal"
         }** length. 
-          If it is "Short", the content should be short, concise and focused on the key points.
-          If it is "Normal", the lecture should cover the material in an average length, providing examples and explanations. 
-          If it is "Long", the lecture should go into more detail, with deep insights, thorough analysis, and extra examples.
+          - If the length is specified as "**Short**", the script for each slide should be short, concise, and focused on the key points.
+          - If the length is specified as "**Normal**", the script for each slide should cover the material in an average length, providing examples and explanations where necessary.
+          - If the length is specified as "**Long**", the script for each slide should be long, going into detail, providing in-depth analysis, rich examples, and extended discussions on the concepts.
         - **Specific User Requirements**: ${
           specificRequirements ?? "**None provided.**"
         }
 
         # **Your Task**
-        1. **Analyze the attached PowerPoint file**, extract its content and explain/discuss it in a concise and easy-to-understand way.
-        2. **Each slide should have EXACTLY ONE comprehensive script, no additional scripts should be created.**
-        2. **For each slide, generate a well-structured and easy-to-understand lecture script.**
+        1. **CAREFULLY ANALYZE the attached PowerPoint file**, extract its content of EACH AND EVERY slide and explain/discuss it in a concise and easy-to-understand way.
+        2. **EACH slide should have EXACTLY ONE comprehensive script, no additional scripts should be created.**
+        2. **For EACH slide, generate a well-structured and easy-to-understand lecture script.**
         3. **Ensure clarity and engagement, aligning with the selected teaching style and academic level.**
-        4. **Ensure the script is clean and speech-friendly. Do not use quotation marks (neither " nor '), symbols, special characters, or extra line breaks — keep the content natural and plain for text-to-speech.**
+        4. **Ensure the script MUST BE clean and speech-friendly. Do not use quotation marks (neither " nor '), symbols, special characters, or extra line breaks — keep the content natural and plain for text-to-speech.**
     `;
 
   const quizPrompt = `
         5. **After every 3-5 slides, include a quiz question to reinforce learning.**
         6. **Each quiz should be directly related to the preceding slides and should assess key concepts.**
         
-        # **Expected JSON Output**
+        **YOU MUST RETURN the output ONLY in the following JSON format. Do not include any preamble, explanations, or conversational text before or after the JSON.**
+        # **REQUIRED JSON Output Structure:**
         \`\`\`json
         {
             "lectureName": "Lecture name",
@@ -433,7 +444,7 @@ const generateLectureScriptWithGoogleAI = async (
   `;
 
   const noQuizPrompt = `
-        # **Expected JSON Output**
+        # **REQUIRED JSON Output Structure:**
         \`\`\`json
         {
             "slides": [
@@ -447,6 +458,7 @@ const generateLectureScriptWithGoogleAI = async (
         \`\`\`
 
         # **Guidelines for AI**
+        - **Do NOT add extra commentary; ONLY return the JSON response.**
         - **Ensure that the script remains engaging, clear, and well-structured.**
         - **If the learner level is beginner, simplify explanations and add examples.**
         - **If the level is advanced, include deeper analysis and technical terms.**
@@ -531,7 +543,7 @@ const generateQuizWithGoogleAIV1 = async (
   if (questionType === "multiple choice") {
     prompt = `
       ${assumption}
-      The quiz should contain ${numberOfQuestions} questions of type "multiple choice". Each question should have:
+      The quiz should contain **EXACTLY ${numberOfQuestions} questions** of type "multiple choice". Each question should have:
         - questionType: "multiple choice"
         - question: The question text
         - options: A list of at least 4 options
@@ -574,7 +586,7 @@ const generateQuizWithGoogleAIV1 = async (
   } else if (questionType === "short answer") {
     prompt = `
       ${assumption}
-      The quiz should contain ${numberOfQuestions} questions of type "short answer". Each question should have:
+      The quiz should contain **EXACTLY ${numberOfQuestions} questions** of type "short answer". Each question should have:
         - questionType: "short answer"
         - question: The question text
         - options: Leave empty
@@ -617,7 +629,7 @@ const generateQuizWithGoogleAIV1 = async (
   } else if (questionType === "multiple choice and short answer") {
     prompt = `
       ${assumption}
-      The quiz should contain ${numberOfQuestions} questions with a mix of "multiple choice" and "short answer" questions. Ensure that:
+      The quiz should contain **EXACTLY ${numberOfQuestions} questions** with a mix of "multiple choice" and "short answer" questions. Ensure that:
         - Half of the questions are "multiple choice" with at least 4 options, and the other half are "short answer".
         - For "multiple choice" questions:
           - questionType: "multiple choice"
@@ -731,13 +743,18 @@ const generateQuizWithGoogleAIV2 = async (
     Analyze the provided PDF file and generate a quiz based on its key concepts and information. 
     The quiz should be tailored to assess the learner's understanding of the content at the ${academicLevel} level, ensuring the questions are appropriately challenging for that level. 
     The quiz must be created in the specified language: ${language}.
+    **Also, please generate a relevant and concise name for this quiz.**
     **Do NOT add extra commentary or text; only return the JSON response.**
+
+    # **Quiz Specifications**
   `;
 
   if (questionType === "multiple choice") {
     prompt = `
       ${assumption}
-      The quiz should contain ${numberOfQuestions} questions of type "multiple choice". Each question should have:
+      The quiz should contain **EXACTLY ${numberOfQuestions} questions** of type "multiple choice".
+      Do not generate more or less than the requested number of questions.
+      Each question should have:
         - questionType: "multiple choice"
         - question: The question text
         - options: A list of at least 4 options
@@ -748,6 +765,7 @@ const generateQuizWithGoogleAIV2 = async (
       # **Expected JSON Output**
       \`\`\`json
       {
+        "quizName": "The Name for the Quiz Set",
         "quizzes": [
           {
             "questionType": "multiple choice",
@@ -780,7 +798,9 @@ const generateQuizWithGoogleAIV2 = async (
   } else if (questionType === "short answer") {
     prompt = `
       ${assumption}
-      The quiz should contain ${numberOfQuestions} questions of type "short answer". Each question should have:
+      The quiz should contain **EXACTLY ${numberOfQuestions} questions** of type "short answer".
+      Do not generate more or less than the requested number of questions.
+      Each question should have:
         - questionType: "short answer"
         - question: The question text
         - options: Leave empty
@@ -791,6 +811,7 @@ const generateQuizWithGoogleAIV2 = async (
       # **Expected JSON Output**
       \`\`\`json
       {
+        "quizName": "The Name for the Quiz Set",
         "quizzes": [
           {
             "questionType": "short answer",
@@ -823,7 +844,9 @@ const generateQuizWithGoogleAIV2 = async (
   } else if (questionType === "multiple choice and short answer") {
     prompt = `
       ${assumption}
-      The quiz should contain ${numberOfQuestions} questions with a mix of "multiple choice" and "short answer" questions. Ensure that:
+      The quiz should contain **EXACTLY ${numberOfQuestions} questions** with a mix of "multiple choice" and "short answer" questions.
+      Do not generate more or less than the requested number of questions.
+      ENSURE that:
         - Half of the questions are "multiple choice" with at least 4 options, and the other half are "short answer".
         - For "multiple choice" questions:
           - questionType: "multiple choice"
@@ -843,6 +866,7 @@ const generateQuizWithGoogleAIV2 = async (
       # **Expected JSON Output**
       \`\`\`json
       {
+        "quizName": "The Name for the Quiz Set",
         "quizzes": [
           {
             "questionType": "multiple choice",
@@ -928,7 +952,7 @@ const checkShortAnswer = async (
         - If the answer is partially correct, assign points accordingly.
         - If the answer is incorrect, assign a score of 0 points.
       Ensure that the **userScore** is always less than or equal to the maximum points available for the question (i.e., it cannot exceed ${points}).
-    4. Detect the language used in the **User's Answer** or in the **Question** and return your feedback **in the same language**.
+    4. Detect the language used in the **User's Answer** or in the **Question** and you **MUST** return your feedback **in the SAME language**.
     5. **IMPORTANT**: **Do NOT add extra commentary or text; only return the JSON response.**
 
     **Expected JSON Output Format**:

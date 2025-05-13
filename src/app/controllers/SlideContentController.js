@@ -194,18 +194,19 @@ class GeneratedSlideController {
           for (let keyword of slide.imageSuggestions) {
             const imageUrl = await searchImage(keyword);
             const checkValid = await isImageValid(imageUrl.imageUrl);
-            console.log(checkValid);
-            if (imageUrl && checkValid.valid) {
+            if (imageUrl && checkValid) {
               const proxyUrl = `${
                 process.env.SERVER_URL
               }/slide-content/image-proxy?url=${encodeURIComponent(
                 imageUrl.imageUrl
               )}`;
+              console.log("imageUrl", imageUrl);
               imageUrls.push({
                 title: imageUrl.title,
                 imageUrl: proxyUrl,
-                width: checkValid.width,
-                height: checkValid.height,
+                source: imageUrl.source,
+                width: imageUrl.width,
+                height: imageUrl.height,
               });
             }
           }
@@ -283,7 +284,7 @@ class GeneratedSlideController {
             const imageUrl = await searchImage(keyword);
             const checkValid = await isImageValid(imageUrl.imageUrl);
             console.log(checkValid);
-            if (imageUrl && checkValid.valid) {
+            if (imageUrl && checkValid) {
               const proxyUrl = `${
                 process.env.SERVER_URL
               }/slide-content/image-proxy?url=${encodeURIComponent(
@@ -292,8 +293,9 @@ class GeneratedSlideController {
               imageUrls.push({
                 title: imageUrl.title,
                 imageUrl: proxyUrl,
-                width: checkValid.width,
-                height: checkValid.height,
+                source: imageUrl.source,
+                width: imageUrl.width,
+                height: imageUrl.height,
               });
             }
           }
@@ -370,7 +372,7 @@ class GeneratedSlideController {
           for (let keyword of slide.imageSuggestions) {
             const imageUrl = await searchImage(keyword);
             const checkValid = await isImageValid(imageUrl.imageUrl);
-            if (imageUrl && checkValid.valid) {
+            if (imageUrl && checkValid) {
               const proxyUrl = `${
                 process.env.SERVER_URL
               }/slide-content/image-proxy?url=${encodeURIComponent(
@@ -379,8 +381,9 @@ class GeneratedSlideController {
               imageUrls.push({
                 title: imageUrl.title,
                 imageUrl: proxyUrl,
-                width: checkValid.width,
-                height: checkValid.height,
+                source: imageUrl.source,
+                width: imageUrl.width,
+                height: imageUrl.height,
               });
             }
           }

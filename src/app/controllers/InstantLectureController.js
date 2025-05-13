@@ -17,7 +17,7 @@ const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY);
 const client = new TextToSpeechClient();
 
 // Tạo cache cho nội dung chat gần đây
-function buildRecentCacheContents(history, limit = 6) {
+function buildRecentCacheContents(history, limit = 10) {
   const sliced = history.slice(-limit);
   return sliced.map((item) => ({
     role: item.role,
@@ -90,7 +90,8 @@ class InstantLectureController {
   async createInstantLecture(req, res, next) {
     try {
       const userId = req.user.id;
-      const { message, teachingStyle, languageCode, voiceType } = req.body;
+      const { message, teachingStyle, languageCode, language, voiceType } =
+        req.body;
       const imageUrl = req?.file?.location;
       if (!message && !imageUrl) {
         return res.status(400).json({ error: "Missing required fields." });
@@ -123,7 +124,7 @@ class InstantLectureController {
 
       let context = `
         You are a knowledgeable, patient, and engaging AI teacher. Your job is to assist the user by explaining content in a way that is clear, informative, and tailored to their needs. 
-        Your teaching style is: "${teachingStyle}". Use the language with code "${languageCode}" for all your responses.
+        Your teaching style is: "${teachingStyle}". You **MUST use the language "${language}" for all your responses**, regardless of what language the questioner uses..
 
         If the user uploads an image without any accompanying message, assume they want you to analyze and explain the content of the image as if you were giving a mini-lecture to a curious learner. 
         Start by identifying the subject of the image, then explain any key features, possible interpretations, and related concepts — all while keeping your explanation accessible and engaging.
@@ -174,26 +175,76 @@ class InstantLectureController {
       const voiceName = await getVoiceName(languageCode, voiceType);
 
       let botResponse = "";
+      let pending = []; // Dùng để lưu các chunk chưa tạo audio
 
       for await (const chunk of response) {
         const chunkText = chunk.text;
         botResponse += chunkText;
+
         if (chunkText) {
-          const plainText = cleanMarkdown(removeMd(chunkText));
-          const request = {
-            input: { text: plainText },
-            voice: { languageCode: languageCode, name: voiceName },
-            audioConfig: { audioEncoding: "MP3" },
-          };
-          const [responseTTS] = await client.synthesizeSpeech(request);
-          res.write(
-            `${JSON.stringify({
-              text: chunkText,
-              audio: responseTTS.audioContent.toString("base64"),
-            })}\n\n\n`
-          );
+          // Kiểm tra ký tự cuối cùng của chunkText
+          const lastChar = chunkText.trim().slice(-1);
+
+          // Nếu ký tự cuối cùng là một chữ cái, thêm vào pending và gửi text
+          if (/[a-zA-ZÀ-ÿ]/.test(lastChar)) {
+            pending.push(chunkText);
+            res.write(
+              `${JSON.stringify({
+                text: chunkText,
+                audio: null, // Không tạo audio cho chunk này
+              })}\n\n\n`
+            );
+            continue;
+          }
+
+          // Nếu không phải chữ cái (dấu câu hoặc khoảng trắng), tạo audio cho tất cả các chunk đã pending
+          if (pending.length > 0) {
+            pending.push(chunkText); // Thêm chunk hiện tại vào pending
+            const combined = cleanMarkdown(removeMd(pending.join("")));
+            const ttsReq = {
+              input: { text: combined },
+              voice: {
+                languageCode,
+                name: voiceName,
+              },
+              audioConfig: { audioEncoding: "MP3" },
+            };
+            const [ttsRes] = await client.synthesizeSpeech(ttsReq);
+
+            // Gửi audio cho các chunk đã pending
+            res.write(
+              `${JSON.stringify({
+                text: chunkText, // Gửi tất cả các chunk đã ghép lại
+                audio: ttsRes.audioContent.toString("base64"), // Audio từ các chunk ghép lại
+              })}\n\n\n`
+            );
+
+            // Reset pending sau khi đã gửi audio
+            pending = [];
+          } else {
+            const combined = cleanMarkdown(removeMd(chunkText));
+            const ttsReq = {
+              input: { text: combined },
+              voice: {
+                languageCode,
+                name: voiceName,
+              },
+              audioConfig: { audioEncoding: "MP3" },
+            };
+            const [ttsRes] = await client.synthesizeSpeech(ttsReq);
+
+            // Nếu không có chunk nào trong pending, chỉ gửi chunk hiện tại
+            res.write(
+              `${JSON.stringify({
+                text: chunkText,
+                audio: ttsRes.audioContent.toString("base64"), // Không tạo audio cho chunk này
+              })}\n\n\n`
+            );
+          }
         }
       }
+
+      // Kết thúc stream
       res.end();
 
       instantLecture.history.push({ role: "model", text: botResponse });
@@ -220,7 +271,7 @@ class InstantLectureController {
 
       // Tạo lectureName
       const lectureNamePrompt = `
-          You are an AI assistant that generates concise lecture titles. Based on the content below, generate **one** short and clear lecture title (4 to 6 words) in language with code ${languageCode}.
+          You are an AI assistant that generates concise lecture titles. Based on the content below, generate **one** short and clear lecture title (4 to 6 words) in language ${language}.
 
           Content: "${botResponse}"
 
@@ -249,7 +300,8 @@ class InstantLectureController {
   async sendMessage(req, res, next) {
     try {
       const { id } = req.params;
-      const { message, teachingStyle, languageCode, voiceType } = req.body;
+      const { message, teachingStyle, languageCode, language, voiceType } =
+        req.body;
       const imageUrl = req.file?.location;
       if (!imageUrl && !message) {
         return res.status(400).json({ error: "Missing required fields." });
@@ -286,7 +338,7 @@ class InstantLectureController {
 
       let context = `
         You are a knowledgeable, patient, and engaging AI teacher. Your job is to assist the user by explaining content in a way that is clear, informative, and tailored to their needs. 
-        Your teaching style is: "${teachingStyle}". Use the language with code "${languageCode}" for all your responses.
+        Your teaching style is: "${teachingStyle}". You **MUST use the language "${language}" for all your responses**, regardless of what language the questioner uses..
 
         If the user uploads an image without any accompanying message, assume they want you to analyze and explain the content of the image as if you were giving a mini-lecture to a curious learner. 
         Start by identifying the subject of the image, then explain any key features, possible interpretations, and related concepts — all while keeping your explanation accessible and engaging.
@@ -303,7 +355,7 @@ class InstantLectureController {
 
       const lectureHistory = instantLecture.history;
       const userMessage =
-        lectureHistory.length < 10
+        lectureHistory.length < 90
           ? `
             Previous model response: ${
               lectureHistory[lectureHistory.length - 1].text
@@ -315,10 +367,10 @@ class InstantLectureController {
 
       // Nếu lịch sử chat đủ dài thì có thể tạo cache
       let cacheName = instantLecture.cacheName;
-      if (lectureHistory.length > 10) {
+      if (lectureHistory.length > 90) {
         const cacheContents = buildRecentCacheContents(
           lectureHistory,
-          history.length
+          lectureHistory.length
         );
         const cache = await genAI.caches.create({
           model: "gemini-1.5-flash-001",
@@ -366,28 +418,75 @@ class InstantLectureController {
       const voiceName = await getVoiceName(languageCode, voiceType);
 
       let botResponse = "";
+      let pending = []; // Dùng để lưu các chunk chưa tạo audio
 
       for await (const chunk of result) {
         const chunkText = chunk.text;
         botResponse += chunkText;
 
         if (chunkText) {
-          const plainText = cleanMarkdown(removeMd(chunkText));
-          const request = {
-            input: { text: plainText },
-            voice: { languageCode: languageCode, name: voiceName },
-            audioConfig: { audioEncoding: "MP3" },
-          };
-          const [responseTTS] = await client.synthesizeSpeech(request);
+          // Kiểm tra ký tự cuối cùng của chunkText
+          const lastChar = chunkText.trim().slice(-1);
 
-          res.write(
-            `${JSON.stringify({
-              text: chunkText,
-              audio: responseTTS.audioContent.toString("base64"),
-            })}\n\n\n`
-          );
+          // Nếu ký tự cuối cùng là một chữ cái, thêm vào pending và gửi text
+          if (/[a-zA-ZÀ-ÿ]/.test(lastChar)) {
+            pending.push(chunkText);
+            res.write(
+              `${JSON.stringify({
+                text: chunkText,
+                audio: null, // Không tạo audio cho chunk này
+              })}\n\n\n`
+            );
+            continue;
+          }
+
+          // Nếu không phải chữ cái (dấu câu hoặc khoảng trắng), tạo audio cho tất cả các chunk đã pending
+          if (pending.length > 0) {
+            pending.push(chunkText); // Thêm chunk hiện tại vào pending
+            const combined = cleanMarkdown(removeMd(pending.join("")));
+            const ttsReq = {
+              input: { text: combined },
+              voice: {
+                languageCode,
+                name: voiceName,
+              },
+              audioConfig: { audioEncoding: "MP3" },
+            };
+            const [ttsRes] = await client.synthesizeSpeech(ttsReq);
+
+            // Gửi audio cho các chunk đã pending
+            res.write(
+              `${JSON.stringify({
+                text: chunkText, // Gửi tất cả các chunk đã ghép lại
+                audio: ttsRes.audioContent.toString("base64"), // Audio từ các chunk ghép lại
+              })}\n\n\n`
+            );
+
+            // Reset pending sau khi đã gửi audio
+            pending = [];
+          } else {
+            const combined = cleanMarkdown(removeMd(chunkText));
+            const ttsReq = {
+              input: { text: combined },
+              voice: {
+                languageCode,
+                name: voiceName,
+              },
+              audioConfig: { audioEncoding: "MP3" },
+            };
+            const [ttsRes] = await client.synthesizeSpeech(ttsReq);
+
+            // Nếu không có chunk nào trong pending, chỉ gửi chunk hiện tại
+            res.write(
+              `${JSON.stringify({
+                text: chunkText,
+                audio: ttsRes.audioContent.toString("base64"), // Không tạo audio cho chunk này
+              })}\n\n\n`
+            );
+          }
         }
       }
+
       // Kết thúc stream
       res.end();
 

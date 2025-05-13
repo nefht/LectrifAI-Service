@@ -1,6 +1,6 @@
 const multer = require("multer");
 const axios = require("axios");
-const { PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { v4: uuidv4 } = require("uuid");
 const { s3Client } = require("../config/aws-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");

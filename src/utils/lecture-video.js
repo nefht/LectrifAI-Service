@@ -174,6 +174,10 @@ const createVideo = async (
           // .loop(speechDuration)
           .inputOptions(["-framerate 1"]) // Chỉ cần 1 frame mỗi giây vì ảnh tĩnh
           .input(speechFile)
+          .videoFilters([
+            "scale=trunc(iw/2)*2:trunc(ih/2)*2", // Đảm bảo kích thước chẵn
+            "format=yuv420p", // Chuyển đổi định dạng pixel
+          ])
           .outputOptions([
             "-c:v libx264",
             "-preset ultrafast", // Thay đổi từ slow sang ultrafast để tăng tốc độ
